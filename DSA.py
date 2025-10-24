@@ -5,6 +5,8 @@ import os
 import altair as alt
 import plotly.express as px
 import base64
+from streamlit_js_eval import streamlit_js_eval
+from geopy.geocoders import Nominatim
 
 # Load employee data
 @st.cache_data
@@ -100,8 +102,28 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.write(emp_info)
 
+            # 🔍 Automatically Detect Location
+            st.subheader("📍 Detecting Your Current Location...")
+            location_data = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition((pos) => pos.coords)", key="get_location")
+
+            if location_data:
+                lat = location_data['latitude']
+                lon = location_data['longitude']
+
+                # Reverse Geocoding
+                geolocator = Nominatim(user_agent="disaster_support_app")
+                try:
+                    location_address = geolocator.reverse((lat, lon), language='en')
+                    address = location_address.address if location_address else f"Lat: {lat}, Lon: {lon}"
+                except:
+                    address = f"Lat: {lat}, Lon: {lon}"
+
+                st.success(f"✅ Location Detected: {address}")
+            else:
+                st.warning("⚠️ Could not automatically detect location. Please allow location access in your browser.")
+                address = st.text_input("Enter Location Manually")
+
             with st.form("emergency_form"):
-                location = st.text_input("Your Current Location")
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
 
                 supplies = st.multiselect(
@@ -120,7 +142,7 @@ if menu == "Employee":
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [location],
+                        'Location': [address],
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
@@ -129,14 +151,7 @@ if menu == "Employee":
 
                     updated_data = pd.concat([data, new_data], ignore_index=True)
                     updated_data.to_csv("requests.csv", index=False)
-                    st.success("Your request has been submitted.")
-
-            st.markdown("---")
-            st.subheader("🗂️ Your Previous Requests")
-            if not data.empty:
-                st.dataframe(data[data['Employee ID'] == emp_id])
-        else:
-            st.warning("Employee ID not found. Please check again.")
+                    st.success("✅ Your request has been submitted successfully.")
 
 # ------------------- ADMIN INTERFACE -------------------
 if menu == "Admin":
