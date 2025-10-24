@@ -2,3 +2,5 @@ streamlit
 pandas
 altair
 plotly
+geopy
+streamlit-js-eval
