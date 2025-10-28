@@ -149,14 +149,14 @@ if menu == "Employee":
             FILE_PATH = "requests.csv"
 
             def get_github_file():
-                url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
+                url = f"https://raw.githubusercontent.com/waiethaqifah/fyp1/main/requests.csv"
                 return pd.read_csv(url)
 
             def push_to_github(updated_df):
                 """Pushes the updated requests.csv to GitHub via REST API."""
                 from base64 import b64encode
-                api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
-                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+                api_url = f"https://api.github.com/repos/waiethaqifah/fyp1/contents/requests.csv"
+                headers = {"Authorization": f"token ghp_my_fyp"}
 
                 # Get current file info (for sha)
                 r = requests.get(api_url, headers=headers)
