@@ -106,29 +106,30 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.write(emp_info)
 
+            # ---------------- LOCATION DETECTION ----------------
             st.subheader("📍 Location Detection")
 
-            # Try IP-based location first
+            # ✅ Improved IP-based location detection (Malaysia-friendly)
             lat, lon, address = None, None, None
             try:
-                resp = requests.get("http://ip-api.com/json/").json()
-                lat, lon = resp.get("lat"), resp.get("lon")
+                resp = requests.get("https://ipapi.co/json/").json()  # Better regional accuracy
+                lat, lon = resp.get("latitude"), resp.get("longitude")
                 if lat and lon:
-                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
+                    address = f"{resp.get('city', 'Unknown')}, {resp.get('region', '')}, {resp.get('country_name', '')}"
                     st.success(f"✅ Approximate location detected via IP: {address}")
                 else:
                     st.warning("⚠️ Could not detect your location automatically.")
             except Exception:
                 st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
 
-            # Interactive map selection
+            # 🗺️ Interactive map selection
             st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
             if lat is not None and lon is not None:
                 start_coords = [lat, lon]
             else:
                 start_coords = [3.139, 101.6869]  # Default: Kuala Lumpur
 
-            m = folium.Map(location=start_coords, zoom_start=6)
+            m = folium.Map(location=start_coords, zoom_start=10)
             folium.LatLngPopup().add_to(m)
             output = st_folium(m, width=700, height=400)
 
@@ -152,7 +153,12 @@ if menu == "Employee":
             if not address:
                 address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
-            # Submit form
+            # Save coordinates in session for later use
+            if lat and lon:
+                st.session_state["employee_location"] = {"lat": lat, "lon": lon, "address": address}
+                st.success("✅ Location saved successfully.")
+
+            # ---------------- REQUEST FORM ----------------
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
                 supplies = st.multiselect(
@@ -163,6 +169,12 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
+                    # Retrieve location info from session
+                    loc_data = st.session_state.get("employee_location", {})
+                    final_address = loc_data.get("address", address)
+                    final_lat = loc_data.get("lat", "")
+                    final_lon = loc_data.get("lon", "")
+
                     new_data = pd.DataFrame({
                         'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
                         'Employee ID': [emp_id],
@@ -170,12 +182,16 @@ if menu == "Employee":
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [address],
+                        'Location': [final_address],
+                        'Latitude': [final_lat],
+                        'Longitude': [final_lon],
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
                         'Request Status': ["Pending"]
                     })
+
+                    # Append and save request data
                     updated_data = pd.concat([data, new_data], ignore_index=True)
                     updated_data.to_csv("requests.csv", index=False)
                     st.success("✅ Your emergency request has been submitted successfully.")
