@@ -90,7 +90,7 @@ menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" el
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
-    emp_id = username
+    
 
     emp_info = employee_df[employee_df['Employee ID'] == emp_id]
     if not emp_info.empty:
