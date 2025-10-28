@@ -106,9 +106,8 @@ if menu == "Employee":
             st.write(emp_info)
 
             st.subheader("📍 Location Detection")
-
-            # Try IP-based location first
             lat, lon, address = None, None, None
+
             try:
                 resp = requests.get("http://ip-api.com/json/").json()
                 lat, lon = resp.get("lat"), resp.get("lon")
@@ -120,24 +119,17 @@ if menu == "Employee":
             except Exception:
                 st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
 
-            # Interactive map selection
             st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
-            if lat is not None and lon is not None:
-                start_coords = [lat, lon]
-            else:
-                start_coords = [3.139, 101.6869]  # Default: Kuala Lumpur
-
+            start_coords = [lat or 3.139, lon or 101.6869]
             m = folium.Map(location=start_coords, zoom_start=6)
             folium.LatLngPopup().add_to(m)
             output = st_folium(m, width=700, height=400)
 
-            # Update lat/lon based on map click
             if output and output.get("last_clicked"):
                 lat = output["last_clicked"]["lat"]
                 lon = output["last_clicked"]["lng"]
                 st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
 
-                # Reverse geocode for readable address
                 try:
                     geolocator = Nominatim(user_agent="tetron_disaster_app")
                     location = geolocator.reverse((lat, lon), language="en")
@@ -151,7 +143,38 @@ if menu == "Employee":
             if not address:
                 address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
-            # Submit form
+            # GitHub connection details
+            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Add this in your Streamlit Cloud secrets
+            REPO = "yourusername/yourrepo"             # <-- change this
+            FILE_PATH = "requests.csv"
+
+            def get_github_file():
+                url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
+                return pd.read_csv(url)
+
+            def push_to_github(updated_df):
+                """Pushes the updated requests.csv to GitHub via REST API."""
+                from base64 import b64encode
+                api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+                # Get current file info (for sha)
+                r = requests.get(api_url, headers=headers)
+                sha = r.json().get("sha")
+
+                # Encode updated CSV
+                content = b64encode(updated_df.to_csv(index=False).encode()).decode()
+
+                data = {
+                    "message": f"Update requests.csv via Streamlit",
+                    "content": content,
+                    "sha": sha
+                }
+
+                result = requests.put(api_url, json=data, headers=headers)
+                return result.status_code in [200, 201]
+
+            # Form submission
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
                 supplies = st.multiselect(
@@ -162,6 +185,14 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
+                    try:
+                        data = get_github_file()
+                    except Exception:
+                        data = pd.DataFrame(columns=[
+                            'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                            'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+                        ])
+
                     new_data = pd.DataFrame({
                         'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
                         'Employee ID': [emp_id],
@@ -176,9 +207,12 @@ if menu == "Employee":
                         'Request Status': ["Pending"]
                     })
                     updated_data = pd.concat([data, new_data], ignore_index=True)
-                    updated_data.to_csv("requests.csv", index=False)
-                    st.success("✅ Your emergency request has been submitted successfully.")
-                    st.balloons()
+
+                    if push_to_github(updated_data):
+                        st.success("✅ Your emergency request has been submitted and synced to GitHub.")
+                        st.balloons()
+                    else:
+                        st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("Employee ID not found. Please check again.")
 
