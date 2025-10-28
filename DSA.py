@@ -6,8 +6,10 @@ import os
 import altair as alt
 import plotly.express as px
 import base64
+import requests
 from geopy.geocoders import Nominatim
-import streamlit.components.v1 as components
+import folium
+import streamlit_folium import st_folium
 
 # Load employee data
 @st.cache_data
