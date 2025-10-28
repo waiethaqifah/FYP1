@@ -84,19 +84,25 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password.")
     st.stop()
 
-# --- Sidebar layout ---
+# --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
     st.header("📋 Navigation")
 
-    # Menu selection
     role = st.session_state.role
+    username = st.session_state.username
+
     menu = st.selectbox(
         "Select Menu",
         ["Employee"] if role == "Employee" else ["Employee", "Admin"]
     )
 
-    # Spacer and logout button
+    # Display user info above logout
     st.markdown("---")
+    st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
+
+    # Add some spacing to push the button downward
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
     logout_clicked = st.button("🚪 Logout", use_container_width=True)
     if logout_clicked:
         st.session_state.logged_in = False
