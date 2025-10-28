@@ -97,7 +97,8 @@ with st.sidebar:
 
     # Spacer and logout button
     st.markdown("---")
-    if st.button("🚪 Logout", use_container_width=True):
+    logout_clicked = st.button("🚪 Logout", use_container_width=True)
+    if logout_clicked:
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.role = ""
