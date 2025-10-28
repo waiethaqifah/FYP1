@@ -221,7 +221,7 @@ if menu == "Admin":
     st.header("🚰 Admin Dashboard - Manage Requests")
 
     # ✅ Load latest data from GitHub instead of local file
-    data = load_data_from_github()
+    data = load_data()
 
     # 🔔 Alert for new pending requests
     pending_count = data[data['Request Status'] == "Pending"].shape[0]
