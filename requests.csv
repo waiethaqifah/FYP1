@@ -1,4 +1,4 @@
 Timestamp,Employee ID,Name,Department,Phone Number,Email,Location,Status,Supplies Needed,Additional Notes,Request Status
 2025-06-20 10:44:16,EMP001,Ali Bin Ahmad,IT,123456789,ali@tetron.com,perak,In Need of Help,"Water, Baby Supplies, Medical Kit, Food, Blanket, Hygiene Kit",,Delivered
-2025-06-20 11:57:15,EMP003,John Tan,Finance,135566778,john@tetron.com,,In Need of Help,"Water, Food",,Pending
+2025-06-20 11:57:15,EMP003,John Tan,Finance,135566778,john@tetron.com,,In Need of Help,"Water, Food",,Rejected
 2025-10-28 08:46:27,EMP001,Ali Bin Ahmad,IT,123456789,ali@tetron.com,"Persiaran Desa Kediaman, Seri Iskandar, Perak Tengah, Perak, 32610, Malaysia",Safe,Food,,Approved
