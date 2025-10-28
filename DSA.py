@@ -86,7 +86,7 @@ role = st.session_state.role
 menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
 
 # ------------------- EMPLOYEE INTERFACE -------------------
-if menu == "Employee":
+f menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
@@ -103,47 +103,53 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.write(emp_info)
 
-            st.subheader("📍 Detecting Your Current Location...")
+            st.subheader("📍 Location Detection")
 
-            # HTML block to capture location
-            get_loc_html = """
-            <script>
-            var sendLocation = (pos) => {
-                const coords = pos.coords;
-                const data = {
-                    latitude: coords.latitude,
-                    longitude: coords.longitude
-                };
-                window.parent.postMessage({type: 'location', data: data}, '*');
-            };
-            navigator.geolocation.getCurrentPosition(sendLocation);
-            </script>
-            """
-            components.html(get_loc_html, height=0)
+            # Try IP-based location first
+            lat, lon, address = None, None, None
+            try:
+                resp = requests.get("http://ip-api.com/json/").json()
+                lat, lon = resp.get("lat"), resp.get("lon")
+                if lat and lon:
+                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
+                    st.success(f"✅ Approximate location detected via IP: {address}")
+                else:
+                    st.warning("⚠️ Could not detect your location automatically.")
+            except Exception:
+                st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
 
-            # Listen for message
-            location_data = st.experimental_get_query_params().get("location", [None])[0]
-            lat, lon = None, None
-
-            if "_STREAMLIT_LOCATION_" in st.session_state:
-                lat, lon = st.session_state["_STREAMLIT_LOCATION_"]
-
-            # Manual backup input
-            if lat is None or lon is None:
-                st.warning("⚠️ Automatic detection may not work on some browsers. Please enter your location manually.")
-                address = st.text_input("Enter Your Current Location (City or Area)")
+            # Interactive map selection
+            st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
+            if lat is not None and lon is not None:
+                start_coords = [lat, lon]
             else:
-                geolocator = Nominatim(user_agent="disaster_support_app")
-                try:
-                    location_address = geolocator.reverse((lat, lon), language='en')
-                    address = location_address.address if location_address else f"Lat: {lat}, Lon: {lon}"
-                    st.success(f"✅ Location Detected: {address}")
-                    st.map(pd.DataFrame([[lat, lon]], columns=["lat", "lon"]))
-                except:
-                    address = f"Lat: {lat}, Lon: {lon}"
-                    st.info(f"Detected Coordinates: {address}")
+                start_coords = [3.139, 101.6869]  # Default: Kuala Lumpur
 
-            # Form submission
+            m = folium.Map(location=start_coords, zoom_start=6)
+            folium.LatLngPopup().add_to(m)
+            output = st_folium(m, width=700, height=400)
+
+            # Update lat/lon based on map click
+            if output and output.get("last_clicked"):
+                lat = output["last_clicked"]["lat"]
+                lon = output["last_clicked"]["lng"]
+                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
+
+                # Reverse geocode for readable address
+                try:
+                    geolocator = Nominatim(user_agent="tetron_disaster_app")
+                    location = geolocator.reverse((lat, lon), language="en")
+                    if location:
+                        address = location.address
+                        st.success(f"✅ Confirmed location: {address}")
+                except Exception:
+                    st.warning("⚠️ Could not retrieve address from coordinates.")
+                    address = f"{lat:.4f}, {lon:.4f}"
+
+            if not address:
+                address = st.text_input("Enter your current location manually (e.g., City or Area)")
+
+            # Submit form
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
                 supplies = st.multiselect(
@@ -169,7 +175,8 @@ if menu == "Employee":
                     })
                     updated_data = pd.concat([data, new_data], ignore_index=True)
                     updated_data.to_csv("requests.csv", index=False)
-                    st.success("✅ Your request has been submitted successfully.")
+                    st.success("✅ Your emergency request has been submitted successfully.")
+                    st.balloons()
         else:
             st.warning("Employee ID not found. Please check again.")
 
