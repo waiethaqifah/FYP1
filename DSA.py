@@ -145,7 +145,7 @@ if menu == "Employee":
 
             # GitHub connection details
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Add this in your Streamlit Cloud secrets
-            REPO = "yourusername/yourrepo"             # <-- change this
+            REPO = "waiethaqifah/fyp1"             
             FILE_PATH = "requests.csv"
 
             def get_github_file():
