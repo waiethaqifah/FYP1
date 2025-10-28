@@ -144,19 +144,19 @@ if menu == "Employee":
                 address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
             # GitHub connection details
-            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Add this in your Streamlit Cloud secrets
+            GITHUB_TOKEN = st.secrets["ghp_my_fyp"]  # Add this in your Streamlit Cloud secrets
             REPO = "waiethaqifah/fyp1"             
             FILE_PATH = "requests.csv"
 
             def get_github_file():
-                url = f"https://raw.githubusercontent.com/waiethaqifah/fyp1/main/requests.csv"
+                url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
                 return pd.read_csv(url)
 
             def push_to_github(updated_df):
                 """Pushes the updated requests.csv to GitHub via REST API."""
                 from base64 import b64encode
-                api_url = f"https://api.github.com/repos/waiethaqifah/fyp1/contents/requests.csv"
-                headers = {"Authorization": f"token ghp_my_fyp"}
+                api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
                 # Get current file info (for sha)
                 r = requests.get(api_url, headers=headers)
