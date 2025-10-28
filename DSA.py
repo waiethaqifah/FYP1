@@ -84,19 +84,25 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password.")
     st.stop()
 
-# Menu based on role
-role = st.session_state.role
-menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
+# --- Sidebar layout ---
+with st.sidebar:
+    st.header("📋 Navigation")
 
-# ✅ Logout button - always visible below menu
-st.sidebar.markdown("---")
-logout_clicked = st.sidebar.button("🚪 Logout", use_container_width=True)
-if logout_clicked:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.role = ""
-    st.success("✅ You have been logged out successfully.")
-    st.experimental_rerun()
+    # Menu selection
+    role = st.session_state.role
+    menu = st.selectbox(
+        "Select Menu",
+        ["Employee"] if role == "Employee" else ["Employee", "Admin"]
+    )
+
+    # Spacer and logout button
+    st.markdown("---")
+    if st.button("🚪 Logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.role = ""
+        st.toast("👋 Logged out successfully.", icon="✅")
+        st.experimental_rerun()
     
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
