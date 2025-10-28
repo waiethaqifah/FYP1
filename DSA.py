@@ -220,8 +220,8 @@ if menu == "Employee":
 if menu == "Admin":
     st.header("🚰 Admin Dashboard - Manage Requests")
 
-    # Reload fresh data without cache
-    data = load_data()
+    # ✅ Load latest data from GitHub instead of local file
+    data = load_data_from_github()
 
     # 🔔 Alert for new pending requests
     pending_count = data[data['Request Status'] == "Pending"].shape[0]
@@ -234,20 +234,47 @@ if menu == "Admin":
     else:
         st.dataframe(data)
 
+        # Select and update request status
         selected_index = st.selectbox("Select request to update:", data.index)
         current_status = data.loc[selected_index, 'Request Status']
 
-        new_status = st.selectbox("Update Status", ["Pending", "Approved", "Delivered", "Rejected"], index=["Pending", "Approved", "Delivered", "Rejected"].index(current_status))
+        new_status = st.selectbox(
+            "Update Status",
+            ["Pending", "Approved", "Delivered", "Rejected"],
+            index=["Pending", "Approved", "Delivered", "Rejected"].index(current_status)
+        )
+
         if st.button("Update Status"):
             data.at[selected_index, 'Request Status'] = new_status
-            data.to_csv("requests.csv", index=False)
-            st.success("Request status updated.")
 
+            # --- Save updated CSV to GitHub ---
+            from github import Github
+            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # 👈 must match your Streamlit secret key name
+            REPO_NAME = "waiethaqifah/fyp1"      # 👈 replace with your actual repo name
+            FILE_PATH = "requests.csv"                 # 👈 path to file in repo
+
+            try:
+                g = Github(GITHUB_TOKEN)
+                repo = g.get_repo(REPO_NAME)
+                contents = repo.get_contents(FILE_PATH)
+
+                updated_csv = data.to_csv(index=False)
+                repo.update_file(
+                    path=FILE_PATH,
+                    message=f"Admin updated request status at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    content=updated_csv,
+                    sha=contents.sha
+                )
+
+                st.success("✅ Request status updated and synced to GitHub.")
+            except Exception as e:
+                st.error(f"❌ Failed to update GitHub file: {e}")
+
+    # --- Reports ---
     st.markdown("---")
     st.subheader("📊 Summary Report")
     st.write(data['Request Status'].value_counts())
 
-    # Additional Reporting
     st.markdown("---")
     st.subheader("📦 Stock Request Overview")
     supply_counts = data['Supplies Needed'].str.get_dummies(sep=", ").sum().sort_values(ascending=False)
@@ -265,7 +292,6 @@ if menu == "Admin":
 
     total_cost = 0
     supply_cost_data = []
-
     for item, count in supply_counts.items():
         cost = count * unit_cost.get(item, 0)
         total_cost += cost
@@ -273,7 +299,6 @@ if menu == "Admin":
 
     cost_df = pd.DataFrame(supply_cost_data)
     st.dataframe(cost_df)
-
     st.metric("Estimated Total Budget Needed (MYR)", f"RM {total_cost:.2f}")
 
     st.subheader("📈 Delivery Status Report")
@@ -281,10 +306,7 @@ if menu == "Admin":
         x=alt.X('Request Status:N', title='Request Status'),
         y=alt.Y('count():Q', title='Number of Requests'),
         color='Request Status:N'
-    ).properties(
-        width=600,
-        height=400
-    )
+    ).properties(width=600, height=400)
     st.altair_chart(delivery_chart)
 
     st.subheader("📅 Requests Over Time")
