@@ -63,57 +63,51 @@ users_df = load_users()
 st.set_page_config(page_title="Tetron Disaster Support App", layout="wide")
 st.title("🖘 Tetron Disaster Emergency Support System")
 
-# --- SESSION STATE LOGIN ---
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.role = ""
-
-if not st.session_state.logged_in:
-    st.sidebar.header("🔐 Login")
-    username = st.sidebar.text_input("Username")
-    password = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Login"):
-        role = authenticate(username, password, users_df)
-        if role:
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.session_state.role = role
-            st.success(f"Welcome, {username} ({role})")
-        else:
-            st.error("Invalid username or password.")
-    st.stop()
-
 # --- SIDEBAR MENU (AFTER LOGIN) ---
-st.sidebar.title("📋 Navigation")
+with st.sidebar:
+    st.markdown(
+        """
+        <style>
+        /* Make logout button fixed at the bottom of the sidebar */
+        [data-testid="stSidebar"] {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .logout-container {
+            padding-top: 20px;
+            padding-bottom: 30px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-role = st.session_state.role
-username = st.session_state.username
+    st.header("📋 Navigation")
 
-# Sidebar menu
-menu = st.sidebar.selectbox(
-    "Select Menu",
-    ["Employee"] if role == "Employee" else ["Employee", "Admin"]
-)
+    role = st.session_state.role
+    username = st.session_state.username
 
-# Display user info
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"👤 **Logged in as:** `{username}`")
-st.sidebar.markdown(f"🧩 **Role:** `{role}`")
-st.sidebar.markdown("---")
+    menu = st.selectbox(
+        "Select Menu",
+        ["Employee"] if role == "Employee" else ["Employee", "Admin"]
+    )
 
-# ✅ Reliable logout button
-st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
-logout_clicked = st.button("🚪 Logout", use_container_width=True)
-if logout_clicked:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.role = ""
-    st.toast("👋 Logged out successfully.", icon="✅")
-    st.experimental_rerun()
+    # User info section
+    st.markdown("---")
+    st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
 
-# 👇 Add this line to help locate it visually
-st.sidebar.markdown("⬇️ Scroll down — Logout button is below this area", unsafe_allow_html=True)
+    # Fixed logout button at bottom
+    st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
+    logout_clicked = st.button("🚪 Logout", use_container_width=True)
+    if logout_clicked:
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.role = ""
+        st.toast("👋 Logged out successfully.", icon="✅")
+        st.experimental_rerun()
+
 
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
