@@ -7,3 +7,4 @@ geopy
 streamlit-js-eval
 folium
 streamlit-folium
+PyGithub
