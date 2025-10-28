@@ -86,6 +86,25 @@ if not st.session_state.logged_in:
 
 # --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
+    st.markdown(
+        """
+        <style>
+        /* Make logout button fixed at the bottom of the sidebar */
+        [data-testid="stSidebar"] {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .logout-container {
+            padding-top: 20px;
+            padding-bottom: 30px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.header("📋 Navigation")
 
     role = st.session_state.role
@@ -96,13 +115,12 @@ with st.sidebar:
         ["Employee"] if role == "Employee" else ["Employee", "Admin"]
     )
 
-    # Display user info above logout
+    # User info section
     st.markdown("---")
     st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
 
-    # Add some spacing to push the button downward
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
+    # Fixed logout button at bottom
+    st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
     logout_clicked = st.button("🚪 Logout", use_container_width=True)
     if logout_clicked:
         st.session_state.logged_in = False
@@ -110,6 +128,11 @@ with st.sidebar:
         st.session_state.role = ""
         st.toast("👋 Logged out successfully.", icon="✅")
         st.experimental_rerun()
+
+# Menu based on role
+role = st.session_state.role
+menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
+
     
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
