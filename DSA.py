@@ -87,25 +87,6 @@ if not st.session_state.logged_in:
 
 # --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
-    st.markdown(
-        """
-        <style>
-        /* Fix logout button position at bottom */
-        [data-testid="stSidebar"] {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100%;
-        }
-        .logout-container {
-            padding-top: 20px;
-            padding-bottom: 30px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     st.header("📋 Navigation")
 
     role = st.session_state.role
@@ -117,10 +98,10 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
+    st.markdown(f"👤 **Logged in as:** `{username}`")
+    st.markdown(f"🧩 **Role:** `{role}`")
 
-    # Fixed logout button at bottom
-    st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
+    st.markdown("---")
     logout_clicked = st.button("🚪 Logout", use_container_width=True)
     if logout_clicked:
         st.session_state.logged_in = False
@@ -128,6 +109,7 @@ with st.sidebar:
         st.session_state.role = ""
         st.toast("👋 Logged out successfully.", icon="✅")
         st.experimental_rerun()
+        
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
