@@ -144,7 +144,7 @@ if menu == "Employee":
                 address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
             # GitHub connection details
-            GITHUB_TOKEN = st.secrets["ghp_my_fyp"]  # Add this in your Streamlit Cloud secrets
+            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Add this in your Streamlit Cloud secrets
             REPO = "waiethaqifah/fyp1"             
             FILE_PATH = "requests.csv"
 
