@@ -88,99 +88,102 @@ role = st.session_state.role
 menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
 
 # ------------------- EMPLOYEE INTERFACE -------------------
-if menu == "Employee":
+if role == "Employee" and logged_in:
     st.header("📋 Submit Your Emergency Request")
+    emp_id = username
 
-    emp_id = st.text_input("Enter Your Employee ID")
+    emp_info = employee_df[employee_df['Employee ID'] == emp_id]
+    if not emp_info.empty:
+        emp_info_row = emp_info.iloc[0]
+        name = emp_info_row['Name']
+        dept = emp_info_row['Department']
+        phone = emp_info_row['Phone Number']
+        email = emp_info_row['Email']
 
-    if emp_id:
-        emp_info = employee_df[employee_df['Employee ID'] == emp_id]
-        if not emp_info.empty:
-            emp_info_row = emp_info.iloc[0]
-            name = emp_info_row['Name']
-            dept = emp_info_row['Department']
-            phone = emp_info_row['Phone Number']
-            email = emp_info_row['Email']
+        st.write("### 👤 Employee Information")
+        st.write(emp_info)
 
-            st.write("### 👤 Employee Information")
-            st.write(emp_info)
+        st.subheader("📍 Location Detection")
 
-            st.subheader("📍 Location Detection")
-
-            # Try IP-based location first
-            lat, lon, address = None, None, None
-            try:
-                resp = requests.get("http://ip-api.com/json/").json()
-                lat, lon = resp.get("lat"), resp.get("lon")
-                if lat and lon:
-                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
-                    st.success(f"✅ Approximate location detected via IP: {address}")
-                else:
-                    st.warning("⚠️ Could not detect your location automatically.")
-            except Exception:
-                st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
-
-            # Interactive map selection
-            st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
-            if lat is not None and lon is not None:
-                start_coords = [lat, lon]
+        # --- IP-based detection ---
+        lat, lon, address = None, None, None
+        try:
+            resp = requests.get("http://ip-api.com/json/").json()
+            lat, lon = resp.get("lat"), resp.get("lon")
+            if lat and lon:
+                address = f"{resp.get('city','Unknown')}, {resp.get('regionName','')}, {resp.get('country','')}"
+                st.success(f"✅ Approximate location detected via IP: {address}")
             else:
-                start_coords = [3.139, 101.6869]  # Default: Kuala Lumpur
+                st.warning("⚠️ Could not detect your location automatically.")
+        except Exception:
+            st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
 
-            m = folium.Map(location=start_coords, zoom_start=6)
-            folium.LatLngPopup().add_to(m)
-            output = st_folium(m, width=700, height=400)
+        # --- Interactive map selection ---
+        st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
+        start_coords = [lat, lon] if lat and lon else [3.139, 101.6869]
+        m = folium.Map(location=start_coords, zoom_start=6)
+        folium.LatLngPopup().add_to(m)
+        output = st_folium(m, width=700, height=400)
 
-            # Update lat/lon based on map click
-            if output and output.get("last_clicked"):
-                lat = output["last_clicked"]["lat"]
-                lon = output["last_clicked"]["lng"]
-                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
+        if output and output.get("last_clicked"):
+            lat = output["last_clicked"]["lat"]
+            lon = output["last_clicked"]["lng"]
+            st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
 
-                # Reverse geocode for readable address
-                try:
-                    geolocator = Nominatim(user_agent="tetron_disaster_app")
-                    location = geolocator.reverse((lat, lon), language="en")
-                    if location:
-                        address = location.address
-                        st.success(f"✅ Confirmed location: {address}")
-                except Exception:
-                    st.warning("⚠️ Could not retrieve address from coordinates.")
-                    address = f"{lat:.4f}, {lon:.4f}"
+        # --- Reverse geocode ---
+        try:
+            if lat and lon:
+                geolocator = Nominatim(user_agent="tetron_disaster_app")
+                location_obj = geolocator.reverse((lat, lon), language="en")
+                if location_obj:
+                    address = location_obj.address
+                    st.success(f"✅ Confirmed location: {address}")
+        except Exception:
+            st.warning("⚠️ Could not retrieve address from coordinates.")
 
-            if not address:
-                address = st.text_input("Enter your current location manually (e.g., City or Area)")
+        if not address:
+            address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
-            # Submit form
-            with st.form("emergency_form"):
-                status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-                supplies = st.multiselect(
-                    "Supplies Needed",
-                    ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
-                )
-                notes = st.text_area("Additional Notes")
-                submit = st.form_submit_button("Submit Request")
+        # --- Emergency Request Form ---
+        with st.form("emergency_form"):
+            status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
+            supplies = st.multiselect(
+                "Supplies Needed",
+                ["Food","Water","Baby Supplies","Hygiene Kit","Medical Kit","Blanket"]
+            )
+            notes = st.text_area("Additional Notes")
+            submit = st.form_submit_button("Submit Request")
 
-                if submit:
-                    new_data = pd.DataFrame({
-                        'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                        'Employee ID': [emp_id],
-                        'Name': [name],
-                        'Department': [dept],
-                        'Phone Number': [phone],
-                        'Email': [email],
-                        'Location': [address],
-                        'Status': [status],
-                        'Supplies Needed': [", ".join(supplies)],
-                        'Additional Notes': [notes],
-                        'Request Status': ["Pending"]
-                    })
-                    updated_data = pd.concat([data, new_data], ignore_index=True)
-                    updated_data.to_csv("requests.csv", index=False)
-                    st.success("✅ Your emergency request has been submitted successfully.")
-                    st.balloons()
+            if submit:
+                new_data = pd.DataFrame({
+                    'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                    'Employee ID': [emp_id],
+                    'Name': [name],
+                    'Department': [dept],
+                    'Phone Number': [phone],
+                    'Email': [email],
+                    'Location': [address],
+                    'Status': [status],
+                    'Supplies Needed': [", ".join(supplies)],
+                    'Additional Notes': [notes],
+                    'Request Status': ["Pending"]
+                })
+
+                updated_data = pd.concat([data, new_data], ignore_index=True)
+                updated_data.to_csv("requests.csv", index=False)
+                st.success("✅ Your emergency request has been submitted successfully.")
+                st.balloons()
+
+        # --- Previous requests ---
+        st.markdown("---")
+        st.subheader("🗂️ Your Previous Requests")
+        emp_reqs = data[data['Employee ID'] == emp_id]
+        if not emp_reqs.empty:
+            st.dataframe(emp_reqs)
         else:
-            st.warning("Employee ID not found. Please check again.")
+            st.info("You have not submitted any requests yet.")
+    else:
+        st.warning("Employee ID not found. Please check again.")
 
 # ------------------- ADMIN INTERFACE -------------------
 if menu == "Admin":
