@@ -84,6 +84,16 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password.")
     st.stop()
 
+# ✅ Add logout button for all logged-in users
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.role = ""
+    st.experimental_rerun()
+
+
+
 # Menu based on role
 role = st.session_state.role
 menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
