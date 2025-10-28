@@ -63,12 +63,34 @@ users_df = load_users()
 st.set_page_config(page_title="Tetron Disaster Support App", layout="wide")
 st.title("🖘 Tetron Disaster Emergency Support System")
 
+# ------------------- LOGIN SESSION SETUP -------------------
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.role = ""
+
+if not st.session_state.logged_in:
+    st.sidebar.header("🔐 Login")
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type="password")
+    if st.sidebar.button("Login"):
+        role = authenticate(username, password, users_df)
+        if role:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.session_state.role = role
+            st.success(f"✅ Welcome, {username} ({role})")
+            st.experimental_rerun()
+        else:
+            st.error("❌ Invalid username or password.")
+    st.stop()
+
 # --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
     st.markdown(
         """
         <style>
-        /* Make logout button fixed at the bottom of the sidebar */
+        /* Fix logout button position at bottom */
         [data-testid="stSidebar"] {
             display: flex;
             flex-direction: column;
@@ -94,7 +116,6 @@ with st.sidebar:
         ["Employee"] if role == "Employee" else ["Employee", "Admin"]
     )
 
-    # User info section
     st.markdown("---")
     st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
 
@@ -107,8 +128,6 @@ with st.sidebar:
         st.session_state.role = ""
         st.toast("👋 Logged out successfully.", icon="✅")
         st.experimental_rerun()
-
-
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
