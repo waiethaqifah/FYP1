@@ -88,7 +88,7 @@ role = st.session_state.role
 menu = st.sidebar.selectbox("Select Menu", ["Employee"] if role == "Employee" else ["Employee", "Admin"])
 
 # ------------------- EMPLOYEE INTERFACE -------------------
-if role == "Employee" and logged_in:
+if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
     emp_id = username
 
