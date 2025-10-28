@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import os
 import altair as alt
 import plotly.express as px
 import base64
-from streamlit_js_eval import streamlit_js_eval
 from geopy.geocoders import Nominatim
+import streamlit.components.v1 as components
 
 # Load employee data
 @st.cache_data
@@ -102,35 +103,53 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.write(emp_info)
 
-            # 🔍 Automatically Detect Location
             st.subheader("📍 Detecting Your Current Location...")
-            location_data = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition((pos) => pos.coords)", key="get_location")
 
-            if location_data:
-                lat = location_data['latitude']
-                lon = location_data['longitude']
+            # HTML block to capture location
+            get_loc_html = """
+            <script>
+            var sendLocation = (pos) => {
+                const coords = pos.coords;
+                const data = {
+                    latitude: coords.latitude,
+                    longitude: coords.longitude
+                };
+                window.parent.postMessage({type: 'location', data: data}, '*');
+            };
+            navigator.geolocation.getCurrentPosition(sendLocation);
+            </script>
+            """
+            components.html(get_loc_html, height=0)
 
-                # Reverse Geocoding
+            # Listen for message
+            location_data = st.experimental_get_query_params().get("location", [None])[0]
+            lat, lon = None, None
+
+            if "_STREAMLIT_LOCATION_" in st.session_state:
+                lat, lon = st.session_state["_STREAMLIT_LOCATION_"]
+
+            # Manual backup input
+            if lat is None or lon is None:
+                st.warning("⚠️ Automatic detection may not work on some browsers. Please enter your location manually.")
+                address = st.text_input("Enter Your Current Location (City or Area)")
+            else:
                 geolocator = Nominatim(user_agent="disaster_support_app")
                 try:
                     location_address = geolocator.reverse((lat, lon), language='en')
                     address = location_address.address if location_address else f"Lat: {lat}, Lon: {lon}"
+                    st.success(f"✅ Location Detected: {address}")
+                    st.map(pd.DataFrame([[lat, lon]], columns=["lat", "lon"]))
                 except:
                     address = f"Lat: {lat}, Lon: {lon}"
+                    st.info(f"Detected Coordinates: {address}")
 
-                st.success(f"✅ Location Detected: {address}")
-            else:
-                st.warning("⚠️ Could not automatically detect location. Please allow location access in your browser.")
-                address = st.text_input("Enter Location Manually")
-
+            # Form submission
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-
                 supplies = st.multiselect(
                     "Supplies Needed",
                     ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
                 )
-
                 notes = st.text_area("Additional Notes")
                 submit = st.form_submit_button("Submit Request")
 
@@ -148,10 +167,11 @@ if menu == "Employee":
                         'Additional Notes': [notes],
                         'Request Status': ["Pending"]
                     })
-
                     updated_data = pd.concat([data, new_data], ignore_index=True)
                     updated_data.to_csv("requests.csv", index=False)
                     st.success("✅ Your request has been submitted successfully.")
+        else:
+            st.warning("Employee ID not found. Please check again.")
 
 # ------------------- ADMIN INTERFACE -------------------
 if menu == "Admin":
