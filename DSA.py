@@ -103,12 +103,17 @@ st.sidebar.markdown(f"🧩 **Role:** `{role}`")
 st.sidebar.markdown("---")
 
 # ✅ Reliable logout button
-if st.sidebar.button("🚪 Logout"):
+st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
+logout_clicked = st.button("🚪 Logout", use_container_width=True)
+if logout_clicked:
     st.session_state.logged_in = False
     st.session_state.username = ""
     st.session_state.role = ""
-    st.success("👋 Logged out successfully.")
+    st.toast("👋 Logged out successfully.", icon="✅")
     st.experimental_rerun()
+
+# 👇 Add this line to help locate it visually
+st.sidebar.markdown("⬇️ Scroll down — Logout button is below this area", unsafe_allow_html=True)
 
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
