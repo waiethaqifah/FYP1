@@ -8,8 +8,8 @@ import plotly.express as px
 import base64
 import requests
 from geopy.geocoders import Nominatim
-import folium
-import streamlit_folium import st_folium
+import folium                          
+from streamlit_folium import st_folium
 
 # Load employee data
 @st.cache_data
