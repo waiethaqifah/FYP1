@@ -148,44 +148,34 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            st.subheader("📍 Location Detection")
-            lat, lon, address = None, None, None
+            # ---------------- LOCATION SELECTION (NEW) ----------------
+            st.subheader("📍 Select Your Location")
 
-            try:
-                resp = requests.get("http://ip-api.com/json/").json()
-                lat, lon = resp.get("lat"), resp.get("lon")
-                if lat and lon:
-                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
-                    st.success(f"✅ Approximate location detected via IP: {address}")
-                else:
-                    st.warning("⚠️ Could not detect your location automatically.")
-            except Exception:
-                st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
+            country = st.selectbox("Select Your Country", ["Malaysia", "Singapore", "Thailand", "Indonesia"])
 
-            st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
-            start_coords = [lat or 3.139, lon or 101.6869]
-            m = folium.Map(location=start_coords, zoom_start=6)
-            folium.LatLngPopup().add_to(m)
-            output = st_folium(m, width=700, height=400)
+            # Define states/districts per country
+            district_options = {
+                "Malaysia": [
+                    "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Penang",
+                    "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu",
+                    "Kuala Lumpur", "Putrajaya", "Labuan"
+                ],
+                "Singapore": ["Central Region", "East Region", "North Region", "North-East Region", "West Region"],
+                "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Khon Kaen", "Songkhla"],
+                "Indonesia": ["Jakarta", "Bandung", "Bali", "Surabaya", "Medan", "Makassar"]
+            }
 
-            if output and output.get("last_clicked"):
-                lat = output["last_clicked"]["lat"]
-                lon = output["last_clicked"]["lng"]
-                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
-                try:
-                    geolocator = Nominatim(user_agent="tetron_disaster_app")
-                    location = geolocator.reverse((lat, lon), language="en")
-                    if location:
-                        address = location.address
-                        st.success(f"✅ Confirmed location: {address}")
-                except Exception:
-                    st.warning("⚠️ Could not retrieve address from coordinates.")
-                    address = f"{lat:.4f}, {lon:.4f}"
+            district = st.selectbox("Select Your State / District", district_options[country])
+            specific_area = st.text_input("Add Specific Area or Landmark (optional)", placeholder="e.g., near Hospital Sungai Buloh")
 
-            if not address:
-                address = st.text_input("Enter your current location manually (e.g., City or Area)")
+            # Build readable address string
+            address = f"{district}, {country}"
+            if specific_area.strip():
+                address = f"{specific_area}, {district}, {country}"
 
-            # GitHub connection
+            st.success(f"✅ Location Selected: {address}")
+
+            # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
             REPO = st.secrets["GITHUB_REPO"]
             FILE_PATH = "requests.csv"
@@ -205,7 +195,7 @@ if menu == "Employee":
                 result = requests.put(api_url, json=data, headers=headers)
                 return result.status_code in [200, 201]
 
-            # WhatsApp alert
+            # ---------------- WHATSAPP ALERT ----------------
             def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
                 try:
                     account_sid = st.secrets["TWILIO_SID"]
@@ -229,7 +219,7 @@ if menu == "Employee":
                 except Exception as e:
                     st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
 
-            # -------------------- FORM SUBMISSION --------------------
+            # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
                 supplies = st.multiselect(
@@ -272,8 +262,6 @@ if menu == "Employee":
                         st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("❌ Employee ID not found. Please check again.")
-    else:
-        st.info("🔎 Please enter your Employee ID to begin.")
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
