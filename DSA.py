@@ -128,157 +128,152 @@ with st.sidebar:
         st.rerun()
 
 # -------------------- EMPLOYEE INTERFACE --------------------
+# ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
-    submit_id = st.button("Submit")
 
-    if submit_id:
-        if emp_id.strip() == "":
-            st.warning("⚠️ Please enter your Employee ID first.")
-        else:
-            emp_info = employee_df[employee_df['Employee ID'] == emp_id]
-            if not emp_info.empty:
-                emp_info_row = emp_info.iloc[0]
-                name = emp_info_row['Name']
-                dept = emp_info_row['Department']
-                phone = emp_info_row['Phone Number']
-                email = emp_info_row['Email']
+    if emp_id.strip() != "":
+        emp_info = employee_df[employee_df['Employee ID'] == emp_id]
 
-                st.success(f"✅ Employee verified: {name} ({dept})")
-                st.write("### 👤 Employee Information")
-                st.dataframe(emp_info)
+        if not emp_info.empty:
+            emp_info_row = emp_info.iloc[0]
+            name = emp_info_row['Name']
+            dept = emp_info_row['Department']
+            phone = emp_info_row['Phone Number']
+            email = emp_info_row['Email']
 
-                st.subheader("📍 Location Detection")
-                lat, lon, address = None, None, None
+            st.success(f"✅ Employee verified: {name} ({dept})")
+            st.write("### 👤 Employee Information")
+            st.dataframe(emp_info)
 
+            st.subheader("📍 Location Detection")
+            lat, lon, address = None, None, None
+
+            try:
+                resp = requests.get("http://ip-api.com/json/").json()
+                lat, lon = resp.get("lat"), resp.get("lon")
+                if lat and lon:
+                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
+                    st.success(f"✅ Approximate location detected via IP: {address}")
+                else:
+                    st.warning("⚠️ Could not detect your location automatically.")
+            except Exception:
+                st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
+
+            st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
+            start_coords = [lat or 3.139, lon or 101.6869]
+            m = folium.Map(location=start_coords, zoom_start=6)
+            folium.LatLngPopup().add_to(m)
+            output = st_folium(m, width=700, height=400)
+
+            if output and output.get("last_clicked"):
+                lat = output["last_clicked"]["lat"]
+                lon = output["last_clicked"]["lng"]
+                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
                 try:
-                    resp = requests.get("http://ip-api.com/json/").json()
-                    lat, lon = resp.get("lat"), resp.get("lon")
-                    if lat and lon:
-                        address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
-                        st.success(f"✅ Approximate location detected via IP: {address}")
-                    else:
-                        st.warning("⚠️ Could not detect your location automatically.")
+                    geolocator = Nominatim(user_agent="tetron_disaster_app")
+                    location = geolocator.reverse((lat, lon), language="en")
+                    if location:
+                        address = location.address
+                        st.success(f"✅ Confirmed location: {address}")
                 except Exception:
-                    st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
+                    st.warning("⚠️ Could not retrieve address from coordinates.")
+                    address = f"{lat:.4f}, {lon:.4f}"
 
-                st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
-                start_coords = [lat or 3.139, lon or 101.6869]
-                m = folium.Map(location=start_coords, zoom_start=6)
-                folium.LatLngPopup().add_to(m)
-                output = st_folium(m, width=700, height=400)
+            if not address:
+                address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
-                if output and output.get("last_clicked"):
-                    lat = output["last_clicked"]["lat"]
-                    lon = output["last_clicked"]["lng"]
-                    st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
-                    try:
-                        geolocator = Nominatim(user_agent="tetron_disaster_app")
-                        location = geolocator.reverse((lat, lon), language="en")
-                        if location:
-                            address = location.address
-                            st.success(f"✅ Confirmed location: {address}")
-                    except Exception:
-                        st.warning("⚠️ Could not retrieve address from coordinates.")
-                        address = f"{lat:.4f}, {lon:.4f}"
+            # GitHub connection
+            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+            REPO = st.secrets["GITHUB_REPO"]
+            FILE_PATH = "requests.csv"
 
-                if not address:
-                    address = st.text_input("Enter your current location manually (e.g., City or Area)")
+            def get_github_file():
+                url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
+                return pd.read_csv(url)
 
-                GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-                REPO = st.secrets["GITHUB_REPO"]
-                FILE_PATH = "requests.csv"
+            def push_to_github(updated_df):
+                from base64 import b64encode
+                api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+                r = requests.get(api_url, headers=headers)
+                sha = r.json().get("sha")
+                content = b64encode(updated_df.to_csv(index=False).encode()).decode()
+                data = {"message": "Update requests.csv via Streamlit", "content": content, "sha": sha}
+                result = requests.put(api_url, json=data, headers=headers)
+                return result.status_code in [200, 201]
 
-                def get_github_file():
-                    url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
-                    return pd.read_csv(url)
-
-                def push_to_github(updated_df):
-                    from base64 import b64encode
-                    api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
-                    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-                    r = requests.get(api_url, headers=headers)
-                    sha = r.json().get("sha")
-                    content = b64encode(updated_df.to_csv(index=False).encode()).decode()
-                    data = {"message": "Update requests.csv via Streamlit", "content": content, "sha": sha}
-                    result = requests.put(api_url, json=data, headers=headers)
-                    return result.status_code in [200, 201]
-
-                # -------------------- WHATSAPP ALERT --------------------
-                def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
-                    try:
-                        account_sid = st.secrets["TWILIO_SID"]
-                        auth_token = st.secrets["TWILIO_AUTH"]
-                        from_whatsapp = st.secrets["TWILIO_WHATSAPP_FROM"]
-                        admin_group_numbers = [
-                            num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")
-                        ]
-                        client = Client(account_sid, auth_token)
-                        message_body = (
-                            f"🚨 *New Emergency Request Submitted!*\n\n"
-                            f"👤 Name: {emp_name}\n"
-                            f"🏢 Department: {dept}\n"
-                            f"📍 Location: {location}\n"
-                            f"📊 Status: {status}\n"
-                            f"📦 Supplies Needed: {supplies}\n"
-                            f"📝 Notes: {notes}\n\n"
-                            f"Please check the admin dashboard for details."
-                        )
-                        for admin in admin_group_numbers:
-                            client.messages.create(
-                                from_=from_whatsapp,
-                                to=admin,
-                                body=message_body
-                            )
-                        st.info("📲 WhatsApp alert sent to admin group.")
-                    except Exception as e:
-                        st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
-
-                # -------------------- FORM SUBMISSION --------------------
-                with st.form("emergency_form"):
-                    status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-                    supplies = st.multiselect(
-                        "Supplies Needed",
-                        ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
+            # WhatsApp alert
+            def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
+                try:
+                    account_sid = st.secrets["TWILIO_SID"]
+                    auth_token = st.secrets["TWILIO_AUTH"]
+                    from_whatsapp = st.secrets["TWILIO_WHATSAPP_FROM"]
+                    admin_group_numbers = [num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")]
+                    client = Client(account_sid, auth_token)
+                    message_body = (
+                        f"🚨 *New Emergency Request Submitted!*\n\n"
+                        f"👤 Name: {emp_name}\n"
+                        f"🏢 Department: {dept}\n"
+                        f"📍 Location: {location}\n"
+                        f"📊 Status: {status}\n"
+                        f"📦 Supplies Needed: {supplies}\n"
+                        f"📝 Notes: {notes}\n\n"
+                        f"Please check the admin dashboard for details."
                     )
-                    notes = st.text_area("Additional Notes")
-                    submit = st.form_submit_button("Submit Request")
+                    for admin in admin_group_numbers:
+                        client.messages.create(from_=from_whatsapp, to=admin, body=message_body)
+                    st.info("📲 WhatsApp alert sent to admin group.")
+                except Exception as e:
+                    st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
 
-                    if submit:
-                        try:
-                            data = get_github_file()
-                        except Exception:
-                            data = pd.DataFrame(columns=[
-                                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
-                                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
-                            ])
+            # -------------------- FORM SUBMISSION --------------------
+            with st.form("emergency_form"):
+                status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
+                supplies = st.multiselect(
+                    "Supplies Needed",
+                    ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
+                )
+                notes = st.text_area("Additional Notes")
+                submit = st.form_submit_button("Submit Request")
 
-                        new_data = pd.DataFrame({
-                            'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                            'Employee ID': [emp_id],
-                            'Name': [name],
-                            'Department': [dept],
-                            'Phone Number': [phone],
-                            'Email': [email],
-                            'Location': [address],
-                            'Status': [status],
-                            'Supplies Needed': [", ".join(supplies)],
-                            'Additional Notes': [notes],
-                            'Request Status': ["Pending"]
-                        })
+                if submit:
+                    try:
+                        data = get_github_file()
+                    except Exception:
+                        data = pd.DataFrame(columns=[
+                            'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                            'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+                        ])
 
-                        updated_data = pd.concat([data, new_data], ignore_index=True)
+                    new_data = pd.DataFrame({
+                        'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                        'Employee ID': [emp_id],
+                        'Name': [name],
+                        'Department': [dept],
+                        'Phone Number': [phone],
+                        'Email': [email],
+                        'Location': [address],
+                        'Status': [status],
+                        'Supplies Needed': [", ".join(supplies)],
+                        'Additional Notes': [notes],
+                        'Request Status': ["Pending"]
+                    })
 
-                        if push_to_github(updated_data):
-                            st.success("✅ Your emergency request has been submitted and synced to GitHub.")
-                            st.balloons()
-                            send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
-                        else:
-                            st.error("❌ Failed to update GitHub file. Please check your token permissions.")
-            else:
-                st.warning("❌ Employee ID not found. Please check again.")
+                    updated_data = pd.concat([data, new_data], ignore_index=True)
+
+                    if push_to_github(updated_data):
+                        st.success("✅ Your emergency request has been submitted and synced to GitHub.")
+                        st.balloons()
+                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
+                    else:
+                        st.error("❌ Failed to update GitHub file. Please check your token permissions.")
+        else:
+            st.warning("❌ Employee ID not found. Please check again.")
+    else:
+        st.info("🔎 Please enter your Employee ID to begin.")
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
