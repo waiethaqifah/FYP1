@@ -86,7 +86,46 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- SIDEBAR MENU (AFTER LOGIN) ---
+# --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+
+        /* Style for user info section */
+        .user-info {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9rem;
+        }
+
+        /* Force logout container to be visible and separated */
+        .logout-container {
+            margin-top: auto;
+            padding: 20px 0;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.3);
+        }
+
+        /* Make the logout button clearly visible */
+        div[data-testid="stSidebar"] button[kind="primary"] {
+            background-color: #ff4b4b !important;
+            color: white !important;
+            font-weight: bold;
+            border-radius: 6px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.header("📋 Navigation")
 
     role = st.session_state.role
@@ -97,11 +136,11 @@ with st.sidebar:
         ["Employee"] if role == "Employee" else ["Employee", "Admin"]
     )
 
-    st.markdown("---")
-    st.markdown(f"👤 **Logged in as:** `{username}`")
-    st.markdown(f"🧩 **Role:** `{role}`")
+    # 👤 User info
+    st.markdown(f'<div class="user-info">👤 Logged in as: <b>{username}</b><br>🧩 Role: <b>{role}</b></div>', unsafe_allow_html=True)
 
-    st.markdown("---")
+    # 🚪 Fixed logout button section
+    st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
     logout_clicked = st.button("🚪 Logout", use_container_width=True)
     if logout_clicked:
         st.session_state.logged_in = False
@@ -109,6 +148,7 @@ with st.sidebar:
         st.session_state.role = ""
         st.toast("👋 Logged out successfully.", icon="✅")
         st.experimental_rerun()
+
         
 # ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
