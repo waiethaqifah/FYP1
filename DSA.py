@@ -132,9 +132,9 @@ if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
-    verify_btn = st.button("🔍 Verify Employee ID")
+    submit_id = st.button("Submit")
 
-    if verify_btn:
+    if submit_id:
         if emp_id.strip() == "":
             st.warning("⚠️ Please enter your Employee ID first.")
         else:
