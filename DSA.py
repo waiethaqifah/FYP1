@@ -73,6 +73,7 @@ if not st.session_state.logged_in:
     st.sidebar.header("🔐 Login")
     username = st.sidebar.text_input("Username")
     password = st.sidebar.text_input("Password", type="password")
+
     if st.sidebar.button("Login"):
         role = authenticate(username, password, users_df)
         if role:
@@ -80,46 +81,26 @@ if not st.session_state.logged_in:
             st.session_state.username = username
             st.session_state.role = role
             st.success(f"✅ Welcome, {username} ({role})")
-            st.experimental_rerun()
+            st.rerun()  # ✅ replaced experimental_rerun
         else:
             st.error("❌ Invalid username or password.")
     st.stop()
 
 # --- SIDEBAR MENU (AFTER LOGIN) ---
-# --- SIDEBAR MENU (AFTER LOGIN) ---
 with st.sidebar:
     st.markdown(
         """
         <style>
+        /* Fix logout button position at bottom of sidebar */
         [data-testid="stSidebar"] {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             height: 100%;
         }
-
-        /* Style for user info section */
-        .user-info {
-            margin-top: 1rem;
-            padding: 0.5rem;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            font-size: 0.9rem;
-        }
-
-        /* Force logout container to be visible and separated */
-        .logout-container {
+        .sidebar-bottom {
             margin-top: auto;
-            padding: 20px 0;
-            text-align: center;
-            border-top: 1px solid rgba(255,255,255,0.3);
-        }
-
-        /* Make the logout button clearly visible */
-        div[data-testid="stSidebar"] button[kind="primary"] {
-            background-color: #ff4b4b !important;
-            color: white !important;
-            font-weight: bold;
-            border-radius: 6px;
+            padding-bottom: 30px;
         }
         </style>
         """,
@@ -136,18 +117,18 @@ with st.sidebar:
         ["Employee"] if role == "Employee" else ["Employee", "Admin"]
     )
 
-    # 👤 User info
-    st.markdown(f'<div class="user-info">👤 Logged in as: <b>{username}</b><br>🧩 Role: <b>{role}</b></div>', unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown(f"👤 **Logged in as:** `{username}`  \n🧩 **Role:** `{role}`")
 
-    # 🚪 Fixed logout button section
-    st.markdown('<div class="logout-container"></div>', unsafe_allow_html=True)
+    # Fixed logout button at bottom
+    st.markdown('<div class="sidebar-bottom"></div>', unsafe_allow_html=True)
     logout_clicked = st.button("🚪 Logout", use_container_width=True)
     if logout_clicked:
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.role = ""
         st.toast("👋 Logged out successfully.", icon="✅")
-        st.experimental_rerun()
+        st.rerun()  # ✅ replaced experimental_rerun
 
         
 # ------------------- EMPLOYEE INTERFACE -------------------
