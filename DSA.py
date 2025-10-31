@@ -11,6 +11,7 @@ from geopy.geocoders import Nominatim
 import folium                          
 from streamlit_folium import st_folium
 from github import Github
+from twilio.rest import Client
 
 # Load employee data
 @st.cache_data
@@ -132,6 +133,8 @@ with st.sidebar:
 
         
 # ------------------- EMPLOYEE INTERFACE -------------------
+# ------------------- EMPLOYEE INTERFACE -------------------
+# ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -188,8 +191,8 @@ if menu == "Employee":
                 address = st.text_input("Enter your current location manually (e.g., City or Area)")
 
             # GitHub connection details
-            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Add this in your Streamlit Cloud secrets
-            REPO = "waiethaqifah/fyp1"             
+            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+            REPO = st.secrets["GITHUB_REPO"]
             FILE_PATH = "requests.csv"
 
             def get_github_file():
@@ -202,15 +205,12 @@ if menu == "Employee":
                 api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
                 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-                # Get current file info (for sha)
                 r = requests.get(api_url, headers=headers)
                 sha = r.json().get("sha")
 
-                # Encode updated CSV
                 content = b64encode(updated_df.to_csv(index=False).encode()).decode()
-
                 data = {
-                    "message": f"Update requests.csv via Streamlit",
+                    "message": "Update requests.csv via Streamlit",
                     "content": content,
                     "sha": sha
                 }
@@ -218,7 +218,43 @@ if menu == "Employee":
                 result = requests.put(api_url, json=data, headers=headers)
                 return result.status_code in [200, 201]
 
-            # Form submission
+            # ------------------ WhatsApp Notification ------------------
+            from twilio.rest import Client
+
+            def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
+                """Send WhatsApp alert to admin group when a new request is submitted."""
+                try:
+                    account_sid = st.secrets["TWILIO_SID"]
+                    auth_token = st.secrets["TWILIO_AUTH"]
+                    from_whatsapp = st.secrets["TWILIO_WHATSAPP_FROM"]
+                    admin_group_numbers = [
+                        num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")
+                    ]
+
+                    client = Client(account_sid, auth_token)
+
+                    message_body = (
+                        f"🚨 *New Emergency Request Submitted!*\n\n"
+                        f"👤 Name: {emp_name}\n"
+                        f"🏢 Department: {dept}\n"
+                        f"📍 Location: {location}\n"
+                        f"📊 Status: {status}\n"
+                        f"📦 Supplies Needed: {supplies}\n"
+                        f"📝 Notes: {notes}\n\n"
+                        f"Please check the admin dashboard for details."
+                    )
+
+                    for admin in admin_group_numbers:
+                        client.messages.create(
+                            from_=from_whatsapp,
+                            to=admin,
+                            body=message_body
+                        )
+                    st.info("📲 WhatsApp alert sent to admin group.")
+                except Exception as e:
+                    st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
+
+            # ------------------ Form Submission ------------------
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
                 supplies = st.multiselect(
@@ -255,10 +291,13 @@ if menu == "Employee":
                     if push_to_github(updated_data):
                         st.success("✅ Your emergency request has been submitted and synced to GitHub.")
                         st.balloons()
+                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
                     else:
                         st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("Employee ID not found. Please check again.")
+
+
 
 # ------------------- ADMIN INTERFACE -------------------
 if menu == "Admin":
