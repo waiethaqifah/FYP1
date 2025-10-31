@@ -144,7 +144,7 @@ if menu == "Employee":
     if verify_btn:
         if emp_id.strip() == "":
             st.warning("Please enter your Employee ID first.")
-        else 
+        else: 
             emp_info = employee_df[employee_df['Employee ID'] == emp_id]
             if not emp_info.empty:
                 emp_info_row = emp_info.iloc[0]
