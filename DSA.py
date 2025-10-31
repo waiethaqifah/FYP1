@@ -139,84 +139,89 @@ if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
+    verify_btn = st.button("Verify Employee ID")
 
-    if emp_id:
-        emp_info = employee_df[employee_df['Employee ID'] == emp_id]
-        if not emp_info.empty:
-            emp_info_row = emp_info.iloc[0]
-            name = emp_info_row['Name']
-            dept = emp_info_row['Department']
-            phone = emp_info_row['Phone Number']
-            email = emp_info_row['Email']
-
-            st.write("### 👤 Employee Information")
-            st.write(emp_info)
-
-            st.subheader("📍 Location Detection")
-            lat, lon, address = None, None, None
-
-            try:
-                resp = requests.get("http://ip-api.com/json/").json()
-                lat, lon = resp.get("lat"), resp.get("lon")
-                if lat and lon:
-                    address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
-                    st.success(f"✅ Approximate location detected via IP: {address}")
-                else:
-                    st.warning("⚠️ Could not detect your location automatically.")
-            except Exception:
-                st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
-
-            st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
-            start_coords = [lat or 3.139, lon or 101.6869]
-            m = folium.Map(location=start_coords, zoom_start=6)
-            folium.LatLngPopup().add_to(m)
-            output = st_folium(m, width=700, height=400)
-
-            if output and output.get("last_clicked"):
-                lat = output["last_clicked"]["lat"]
-                lon = output["last_clicked"]["lng"]
-                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
-
+    if verify_btn:
+        if emp_id.strip() == "":
+            st.warning("Please enter your Employee ID first.")
+        else 
+            emp_info = employee_df[employee_df['Employee ID'] == emp_id]
+            if not emp_info.empty:
+                emp_info_row = emp_info.iloc[0]
+                name = emp_info_row['Name']
+                dept = emp_info_row['Department']
+                phone = emp_info_row['Phone Number']
+                email = emp_info_row['Email']
+                
+                st.success(f"Employee verified: {name} ({dept})")
+                st.write("### 👤 Employee Information")
+                st.write(emp_info)
+    
+                st.subheader("📍 Location Detection")
+                lat, lon, address = None, None, None
+    
                 try:
-                    geolocator = Nominatim(user_agent="tetron_disaster_app")
-                    location = geolocator.reverse((lat, lon), language="en")
-                    if location:
-                        address = location.address
-                        st.success(f"✅ Confirmed location: {address}")
+                    resp = requests.get("http://ip-api.com/json/").json()
+                    lat, lon = resp.get("lat"), resp.get("lon")
+                    if lat and lon:
+                        address = f"{resp.get('city', 'Unknown')}, {resp.get('regionName', '')}, {resp.get('country', '')}"
+                        st.success(f"✅ Approximate location detected via IP: {address}")
+                    else:
+                        st.warning("⚠️ Could not detect your location automatically.")
                 except Exception:
-                    st.warning("⚠️ Could not retrieve address from coordinates.")
-                    address = f"{lat:.4f}, {lon:.4f}"
-
-            if not address:
-                address = st.text_input("Enter your current location manually (e.g., City or Area)")
-
-            # GitHub connection details
-            GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-            REPO = st.secrets["GITHUB_REPO"]
-            FILE_PATH = "requests.csv"
-
-            def get_github_file():
-                url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
-                return pd.read_csv(url)
-
-            def push_to_github(updated_df):
-                """Pushes the updated requests.csv to GitHub via REST API."""
-                from base64 import b64encode
-                api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
-                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-
-                r = requests.get(api_url, headers=headers)
-                sha = r.json().get("sha")
-
-                content = b64encode(updated_df.to_csv(index=False).encode()).decode()
-                data = {
-                    "message": "Update requests.csv via Streamlit",
-                    "content": content,
-                    "sha": sha
-                }
-
-                result = requests.put(api_url, json=data, headers=headers)
-                return result.status_code in [200, 201]
+                    st.warning("⚠️ Network or IP detection failed. You can select location manually below.")
+    
+                st.markdown("#### 🗺️ Confirm or Adjust Your Location on the Map")
+                start_coords = [lat or 3.139, lon or 101.6869]
+                m = folium.Map(location=start_coords, zoom_start=6)
+                folium.LatLngPopup().add_to(m)
+                output = st_folium(m, width=700, height=400)
+    
+                if output and output.get("last_clicked"):
+                    lat = output["last_clicked"]["lat"]
+                    lon = output["last_clicked"]["lng"]
+                    st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
+    
+                    try:
+                        geolocator = Nominatim(user_agent="tetron_disaster_app")
+                        location = geolocator.reverse((lat, lon), language="en")
+                        if location:
+                            address = location.address
+                            st.success(f"✅ Confirmed location: {address}")
+                    except Exception:
+                        st.warning("⚠️ Could not retrieve address from coordinates.")
+                        address = f"{lat:.4f}, {lon:.4f}"
+    
+                if not address:
+                    address = st.text_input("Enter your current location manually (e.g., City or Area)")
+    
+                # GitHub connection details
+                GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+                REPO = st.secrets["GITHUB_REPO"]
+                FILE_PATH = "requests.csv"
+    
+                def get_github_file():
+                    url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
+                    return pd.read_csv(url)
+    
+                def push_to_github(updated_df):
+                    """Pushes the updated requests.csv to GitHub via REST API."""
+                    from base64 import b64encode
+                    api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+                    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    
+                    r = requests.get(api_url, headers=headers)
+                    sha = r.json().get("sha")
+    
+                    content = b64encode(updated_df.to_csv(index=False).encode()).decode()
+                    data = {
+                        "message": "Update requests.csv via Streamlit",
+                        "content": content,
+                        "sha": sha
+                    }
+    
+                    result = requests.put(api_url, json=data, headers=headers)
+                    return result.status_code in [200, 201]
 
             # ------------------ WhatsApp Notification ------------------
             from twilio.rest import Client
