@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import time
 import os
 import altair as alt
 import plotly.express as px
@@ -128,7 +129,6 @@ with st.sidebar:
         st.rerun()
 
 # -------------------- EMPLOYEE INTERFACE --------------------
-# ------------------- EMPLOYEE INTERFACE -------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -293,7 +293,85 @@ if menu == "Employee":
                         st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("❌ Employee ID not found. Please check again.")
+    # ---------------- MOCK REQUEST GENERATOR ----------------
+    st.markdown("---")
+    st.subheader("🧪 Mock Data Generation (Testing Only)")
 
+    def generate_mock_requests(n=40):
+        import random, time
+        from datetime import datetime
+
+        try:
+            data = get_github_file()
+        except Exception:
+            data = pd.DataFrame(columns=[
+                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+            ])
+
+        departments = ["HR", "IT", "Logistics", "Operations", "Finance"]
+        statuses = ["Safe", "Evacuated", "In Need of Help"]
+        supplies_list = [
+            ["Food", "Water"],
+            ["Medical Kit", "Blanket"],
+            ["Hygiene Kit", "Baby Supplies"],
+            ["Water", "Blanket"]
+        ]
+        locations = [
+            "Kuala Lumpur, Malaysia",
+            "Selangor, Malaysia",
+            "Johor Bahru, Malaysia",
+            "Penang, Malaysia",
+            "Sabah, Malaysia"
+        ]
+
+        new_entries = []
+        for i in range(n):
+            emp_id = f"EMP{1000 + i}"
+            name = f"Employee {i+1}"
+            dept = random.choice(departments)
+            phone = f"+6011{random.randint(10000000, 99999999)}"
+            email = f"employee{i+1}@example.com"
+            location = random.choice(locations)
+            status = random.choice(statuses)
+            supplies = random.choice(supplies_list)
+            notes = random.choice([
+                "Need urgent assistance",
+                "Safe but need food supplies",
+                "Evacuated to safe zone",
+                "Family stranded nearby"
+            ])
+
+            new_entry = {
+                'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'Employee ID': emp_id,
+                'Name': name,
+                'Department': dept,
+                'Phone Number': phone,
+                'Email': email,
+                'Location': location,
+                'Status': status,
+                'Supplies Needed': ", ".join(supplies),
+                'Additional Notes': notes,
+                'Request Status': "Pending"
+            }
+            new_entries.append(new_entry)
+
+            # 🔔 Send WhatsApp alert
+            send_whatsapp_alert(name, dept, status, ", ".join(supplies), location, notes)
+            time.sleep(1.5)  # to prevent Twilio spam limit
+
+        mock_df = pd.DataFrame(new_entries)
+        updated_data = pd.concat([data, mock_df], ignore_index=True)
+
+        if push_to_github(updated_data):
+            st.success(f"✅ Successfully added {n} mock requests and sent WhatsApp alerts.")
+        else:
+            st.error("❌ Failed to update GitHub file.")
+
+    if st.button("Generate 40 Mock Requests"):
+        with st.spinner("Generating 40 mock requests and sending WhatsApp alerts..."):
+            generate_mock_requests(40)
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
