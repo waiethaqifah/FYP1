@@ -149,8 +149,9 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- REAL GPS DETECTION ----------------
-            st.subheader("📍 Get Your Current Location")
+            # -------------------- GPS LOCATION DETECTION --------------------
+            st.subheader("📍 Detect Your Current Location")
+            st.write("Click below to get your GPS location (requires browser permission).")
 
             gps_html = """
             <div style="max-width:600px; margin:auto;">
@@ -166,9 +167,7 @@ if menu == "Employee":
             var map = L.map('map', {tap:false}).setView([0,0], 2);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                tileSize: 256,
-                detectRetina: true,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             }).addTo(map);
 
             var marker;
@@ -186,17 +185,15 @@ if menu == "Employee":
                         const acc = pos.coords.accuracy.toFixed(1);
                         output.innerHTML = `Latitude: ${lat}<br>Longitude: ${lon}<br>Accuracy: ±${acc} m`;
 
-                        // Update map
                         map.setView([lat, lon], 16);
                         if (marker) { map.removeLayer(marker); }
                         marker = L.marker([lat, lon]).addTo(map)
                             .bindPopup(`📍 You are here<br>Accuracy ±${acc} m`)
                             .openPopup();
 
-                        // Send to Streamlit hidden textarea
                         const hidden_input = window.parent.document.querySelector('textarea[data-testid="stTextArea-input"]');
                         const event = new Event('input', { bubbles: true });
-                        hidden_input.value = lat + "," + lon + "," + acc;
+                        hidden_input.value = lat + "," + lon;
                         hidden_input.dispatchEvent(event);
                     },
                     (err) => {
@@ -209,33 +206,28 @@ if menu == "Employee":
             """
 
             st.components.v1.html(gps_html, height=550)
-
-            coords = st.text_area("Hidden GPS data", label_visibility="collapsed")
+            coords = st.text_area("Hidden GPS Data", label_visibility="collapsed")
 
             address = None
             if coords:
                 try:
-                    lat, lon, acc = map(float, coords.split(","))
-                    st.success(f"✅ Location Found! Accuracy ±{acc:.1f} m")
-                    st.write(f"**Latitude:** {lat}")
-                    st.write(f"**Longitude:** {lon}")
-                    st.markdown(f"[🌍 Open in Google Maps](https://www.google.com/maps?q={lat},{lon})")
-
-                    # Convert coordinates into address using geopy
-                    try:
-                        geolocator = Nominatim(user_agent="tetron_disaster_app")
-                        location = geolocator.reverse((lat, lon), language="en")
-                        address = location.address if location else f"{lat}, {lon}"
-                        st.success(f"📍 Confirmed Address: {address}")
-                    except Exception:
-                        st.warning("⚠️ Could not retrieve address. Using coordinates instead.")
-                        address = f"{lat}, {lon}"
-                except:
-                    st.warning("⚠️ Could not parse GPS data. Try clicking the button again.")
+                    lat, lon = map(float, coords.split(","))
+                    from geopy.geocoders import Nominatim
+                    geolocator = Nominatim(user_agent="tetron_disaster_app")
+                    location = geolocator.reverse((lat, lon), language="en")
+                    if location:
+                        address = location.address
+                        st.success(f"📍 Confirmed Location: {address}")
+                    else:
+                        address = f"Lat {lat:.4f}, Lon {lon:.4f}"
+                        st.warning("⚠️ Could not retrieve full address from coordinates.")
+                except Exception as e:
+                    st.warning(f"⚠️ Could not process GPS data: {e}")
             else:
-                st.info("Click the button above and allow location permission.")
+                st.info("Click the button above and allow browser location permission to detect your position.")
+            # ------------------------------------------------------------------
 
-            # ---------------- GITHUB CONNECTION ----------------
+            # -------------------- GitHub CSV INTEGRATION --------------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
             REPO = st.secrets["GITHUB_REPO"]
             FILE_PATH = "requests.csv"
@@ -254,8 +246,9 @@ if menu == "Employee":
                 data = {"message": "Update requests.csv via Streamlit", "content": content, "sha": sha}
                 result = requests.put(api_url, json=data, headers=headers)
                 return result.status_code in [200, 201]
+            # ------------------------------------------------------------------
 
-            # ---------------- WHATSAPP ALERT ----------------
+            # -------------------- WHATSAPP ALERT FUNCTION --------------------
             def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
                 try:
                     account_sid = st.secrets["TWILIO_SID"]
@@ -278,53 +271,50 @@ if menu == "Employee":
                     st.info("📲 WhatsApp alert sent to admin group.")
                 except Exception as e:
                     st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
+            # ------------------------------------------------------------------
 
-            # ---------------- FORM SUBMISSION ----------------
-            with st.form("emergency_form"):
-                status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-                supplies = st.multiselect(
-                    "Supplies Needed",
-                    ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
-                )
-                notes = st.text_area("Additional Notes")
-                submit = st.form_submit_button("Submit Request")
+            # -------------------- REQUEST FORM --------------------
+            st.subheader("🆘 Submit Your Emergency Details")
 
-                if submit:
-                    if not address:
-                        st.error("❌ Please get your location before submitting the request.")
-                    else:
-                        try:
-                            data = get_github_file()
-                        except Exception:
-                            data = pd.DataFrame(columns=[
-                                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
-                                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
-                            ])
+            status = st.selectbox("Current Situation Status", ["Critical", "Moderate", "Stable"])
+            supplies = st.text_input("Supplies Needed (e.g., Food, Water, Medicine)")
+            notes = st.text_area("Additional Notes")
 
-                        new_data = pd.DataFrame({
-                            'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                            'Employee ID': [emp_id],
-                            'Name': [name],
-                            'Department': [dept],
-                            'Phone Number': [phone],
-                            'Email': [email],
-                            'Location': [address],
-                            'Status': [status],
-                            'Supplies Needed': [", ".join(supplies)],
-                            'Additional Notes': [notes],
-                            'Request Status': ["Pending"]
-                        })
+            if st.button("🚨 Submit Request"):
+                try:
+                    data = get_github_file()
+                except Exception:
+                    data = pd.DataFrame(columns=[
+                        'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                        'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+                    ])
 
-                        updated_data = pd.concat([data, new_data], ignore_index=True)
+                from datetime import datetime
+                new_entry = {
+                    'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'Employee ID': emp_id,
+                    'Name': name,
+                    'Department': dept,
+                    'Phone Number': phone,
+                    'Email': email,
+                    'Location': address if address else "Unknown",
+                    'Status': status,
+                    'Supplies Needed': supplies,
+                    'Additional Notes': notes,
+                    'Request Status': "Pending"
+                }
 
-                        if push_to_github(updated_data):
-                            st.success("✅ Your emergency request has been submitted and synced to GitHub.")
-                            st.balloons()
-                            send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
-                        else:
-                            st.error("❌ Failed to update GitHub file. Please check your token permissions.")
+                updated_df = pd.concat([data, pd.DataFrame([new_entry])], ignore_index=True)
+
+                if push_to_github(updated_df):
+                    st.success("✅ Emergency request submitted successfully!")
+                    st.balloons()
+                    send_whatsapp_alert(name, dept, status, supplies, address, notes)
+                else:
+                    st.error("❌ Failed to update GitHub CSV.")
+            # ------------------------------------------------------------------
         else:
-            st.warning("❌ Employee ID not found. Please check again.")
+            st.error("❌ Employee ID not found. Please check and try again.")
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
