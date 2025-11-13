@@ -129,6 +129,7 @@ with st.sidebar:
         st.rerun()
 
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -148,63 +149,91 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- LOCATION SELECTION ----------------
-            st.subheader("📍 Select and Confirm Your Location")
+            # ---------------- REAL GPS DETECTION ----------------
+            st.subheader("📍 Get Your Current Location")
 
-            country = st.selectbox("Select Your Country", ["Malaysia", "Singapore", "Thailand", "Indonesia"])
+            gps_html = """
+            <div style="max-width:600px; margin:auto;">
+                <button onclick="getLocation()" style="width:100%; padding:10px; font-size:16px;">📍 Get My Location</button>
+                <p id="output" style="text-align:center; margin-top:10px;">Waiting for location...</p>
+                <div id="map" style="height:400px; width:100%; border:1px solid #ccc; border-radius:8px;"></div>
+            </div>
 
-            district_options = {
-                "Malaysia": [
-                    "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Penang",
-                    "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu",
-                    "Kuala Lumpur", "Putrajaya", "Labuan"
-                ],
-                "Singapore": ["Central Region", "East Region", "North Region", "North-East Region", "West Region"],
-                "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Khon Kaen", "Songkhla"],
-                "Indonesia": ["Jakarta", "Bandung", "Bali", "Surabaya", "Medan", "Makassar"]
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+            <script>
+            var map = L.map('map', {tap:false}).setView([0,0], 2);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                tileSize: 256,
+                detectRetina: true,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+            }).addTo(map);
+
+            var marker;
+
+            function getLocation() {
+                const output = document.getElementById('output');
+                if (!navigator.geolocation) {
+                    output.innerHTML = "Geolocation not supported.";
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude.toFixed(6);
+                        const lon = pos.coords.longitude.toFixed(6);
+                        const acc = pos.coords.accuracy.toFixed(1);
+                        output.innerHTML = `Latitude: ${lat}<br>Longitude: ${lon}<br>Accuracy: ±${acc} m`;
+
+                        // Update map
+                        map.setView([lat, lon], 16);
+                        if (marker) { map.removeLayer(marker); }
+                        marker = L.marker([lat, lon]).addTo(map)
+                            .bindPopup(`📍 You are here<br>Accuracy ±${acc} m`)
+                            .openPopup();
+
+                        // Send to Streamlit hidden textarea
+                        const hidden_input = window.parent.document.querySelector('textarea[data-testid="stTextArea-input"]');
+                        const event = new Event('input', { bubbles: true });
+                        hidden_input.value = lat + "," + lon + "," + acc;
+                        hidden_input.dispatchEvent(event);
+                    },
+                    (err) => {
+                        output.innerHTML = "Error: " + err.message;
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
             }
+            </script>
+            """
 
-            district = st.selectbox("Select Your State / District", district_options[country])
-            specific_area = st.text_input("Add Specific Area or Landmark (optional)", placeholder="e.g., near Hospital Sungai Buloh")
+            st.components.v1.html(gps_html, height=550)
 
-            st.markdown("#### 🗺️ Adjust Your Exact Location on the Map")
+            coords = st.text_area("Hidden GPS data", label_visibility="collapsed")
 
-            # Approximate coordinates for selected region (for map center)
-            region_coords = {
-                "Malaysia": [4.2105, 101.9758],
-                "Singapore": [1.3521, 103.8198],
-                "Thailand": [13.7563, 100.5018],
-                "Indonesia": [-0.7893, 113.9213]
-            }
-
-            lat, lon, address = None, None, None
-            start_coords = region_coords.get(country, [3.139, 101.6869])
-
-            # Folium map
-            m = folium.Map(location=start_coords, zoom_start=6)
-            folium.LatLngPopup().add_to(m)
-            output = st_folium(m, width=700, height=400)
-
-            if output and output.get("last_clicked"):
-                lat = output["last_clicked"]["lat"]
-                lon = output["last_clicked"]["lng"]
-                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
-
+            address = None
+            if coords:
                 try:
-                    geolocator = Nominatim(user_agent="tetron_disaster_app")
-                    location = geolocator.reverse((lat, lon), language="en")
-                    if location:
-                        address = location.address
-                        st.success(f"✅ Confirmed detailed location: {address}")
-                except Exception:
-                    st.warning("⚠️ Could not retrieve address from coordinates.")
-                    address = f"{lat:.4f}, {lon:.4f}"
+                    lat, lon, acc = map(float, coords.split(","))
+                    st.success(f"✅ Location Found! Accuracy ±{acc:.1f} m")
+                    st.write(f"**Latitude:** {lat}")
+                    st.write(f"**Longitude:** {lon}")
+                    st.markdown(f"[🌍 Open in Google Maps](https://www.google.com/maps?q={lat},{lon})")
 
-            if not address:
-                # fallback address if no map click
-                address = f"{specific_area}, {district}, {country}" if specific_area.strip() else f"{district}, {country}"
-
-            st.success(f"📍 Final Location: {address}")
+                    # Convert coordinates into address using geopy
+                    try:
+                        geolocator = Nominatim(user_agent="tetron_disaster_app")
+                        location = geolocator.reverse((lat, lon), language="en")
+                        address = location.address if location else f"{lat}, {lon}"
+                        st.success(f"📍 Confirmed Address: {address}")
+                    except Exception:
+                        st.warning("⚠️ Could not retrieve address. Using coordinates instead.")
+                        address = f"{lat}, {lon}"
+                except:
+                    st.warning("⚠️ Could not parse GPS data. Try clicking the button again.")
+            else:
+                st.info("Click the button above and allow location permission.")
 
             # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -261,117 +290,41 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    try:
-                        data = get_github_file()
-                    except Exception:
-                        data = pd.DataFrame(columns=[
-                            'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
-                            'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
-                        ])
-
-                    new_data = pd.DataFrame({
-                        'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                        'Employee ID': [emp_id],
-                        'Name': [name],
-                        'Department': [dept],
-                        'Phone Number': [phone],
-                        'Email': [email],
-                        'Location': [address],
-                        'Status': [status],
-                        'Supplies Needed': [", ".join(supplies)],
-                        'Additional Notes': [notes],
-                        'Request Status': ["Pending"]
-                    })
-
-                    updated_data = pd.concat([data, new_data], ignore_index=True)
-
-                    if push_to_github(updated_data):
-                        st.success("✅ Your emergency request has been submitted and synced to GitHub.")
-                        st.balloons()
-                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
+                    if not address:
+                        st.error("❌ Please get your location before submitting the request.")
                     else:
-                        st.error("❌ Failed to update GitHub file. Please check your token permissions.")
+                        try:
+                            data = get_github_file()
+                        except Exception:
+                            data = pd.DataFrame(columns=[
+                                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+                            ])
+
+                        new_data = pd.DataFrame({
+                            'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                            'Employee ID': [emp_id],
+                            'Name': [name],
+                            'Department': [dept],
+                            'Phone Number': [phone],
+                            'Email': [email],
+                            'Location': [address],
+                            'Status': [status],
+                            'Supplies Needed': [", ".join(supplies)],
+                            'Additional Notes': [notes],
+                            'Request Status': ["Pending"]
+                        })
+
+                        updated_data = pd.concat([data, new_data], ignore_index=True)
+
+                        if push_to_github(updated_data):
+                            st.success("✅ Your emergency request has been submitted and synced to GitHub.")
+                            st.balloons()
+                            send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
+                        else:
+                            st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("❌ Employee ID not found. Please check again.")
-    # ---------------- MOCK REQUEST GENERATOR ----------------
-    st.markdown("---")
-    st.subheader("🧪 Mock Data Generation (Testing Only)")
-
-    def generate_mock_requests(n=40):
-        import random, time
-        from datetime import datetime
-
-        try:
-            data = get_github_file()
-        except Exception:
-            data = pd.DataFrame(columns=[
-                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
-                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
-            ])
-
-        departments = ["HR", "IT", "Logistics", "Operations", "Finance"]
-        statuses = ["Safe", "Evacuated", "In Need of Help"]
-        supplies_list = [
-            ["Food", "Water"],
-            ["Medical Kit", "Blanket"],
-            ["Hygiene Kit", "Baby Supplies"],
-            ["Water", "Blanket"]
-        ]
-        locations = [
-            "Kuala Lumpur, Malaysia",
-            "Selangor, Malaysia",
-            "Johor Bahru, Malaysia",
-            "Penang, Malaysia",
-            "Sabah, Malaysia"
-        ]
-
-        new_entries = []
-        for i in range(n):
-            emp_id = f"EMP{1000 + i}"
-            name = f"Employee {i+1}"
-            dept = random.choice(departments)
-            phone = f"+6011{random.randint(10000000, 99999999)}"
-            email = f"employee{i+1}@example.com"
-            location = random.choice(locations)
-            status = random.choice(statuses)
-            supplies = random.choice(supplies_list)
-            notes = random.choice([
-                "Need urgent assistance",
-                "Safe but need food supplies",
-                "Evacuated to safe zone",
-                "Family stranded nearby"
-            ])
-
-            new_entry = {
-                'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'Employee ID': emp_id,
-                'Name': name,
-                'Department': dept,
-                'Phone Number': phone,
-                'Email': email,
-                'Location': location,
-                'Status': status,
-                'Supplies Needed': ", ".join(supplies),
-                'Additional Notes': notes,
-                'Request Status': "Pending"
-            }
-            new_entries.append(new_entry)
-
-            # 🔔 Send WhatsApp alert
-            send_whatsapp_alert(name, dept, status, ", ".join(supplies), location, notes)
-            time.sleep(1.5)  # to prevent Twilio spam limit
-
-        mock_df = pd.DataFrame(new_entries)
-        updated_data = pd.concat([data, mock_df], ignore_index=True)
-
-        if push_to_github(updated_data):
-            st.success(f"✅ Successfully added {n} mock requests and sent WhatsApp alerts.")
-        else:
-            st.error("❌ Failed to update GitHub file.")
-
-    if st.button("Generate 40 Mock Requests"):
-        with st.spinner("Generating 40 mock requests and sending WhatsApp alerts..."):
-            generate_mock_requests(40)
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
