@@ -133,6 +133,7 @@ with st.sidebar:
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -155,13 +156,12 @@ if menu == "Employee":
             # ---------------- GPS LOCATION ----------------
             st.subheader("📍 Detect & Confirm Your Location")
 
-            import json
-
-            # Streamlit component to detect GPS and return coordinates to Python
-            coords_json = st.components.v1.html("""
+            # Step 1: Render map & button to copy coordinates JSON
+            gps_html = """
             <div style="text-align:center;">
                 <button onclick="getLocation()">📍 Detect My Location</button>
                 <p id="status">Waiting for location...</p>
+                <textarea id="coords_output" style="width:100%; height:80px;" readonly></textarea>
                 <div id="map" style="height:400px; width:100%; margin-top:10px;"></div>
 
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -170,6 +170,7 @@ if menu == "Employee":
                 <script>
                 function getLocation() {
                     const status = document.getElementById('status');
+                    const output = document.getElementById('coords_output');
                     if (!navigator.geolocation) {
                         status.innerHTML = "Geolocation not supported by this browser.";
                         return;
@@ -183,7 +184,7 @@ if menu == "Employee":
                         try {
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
                             const data = await res.json();
-                            if (data && data.display_name) address = data.display_name;
+                            if(data && data.display_name) address = data.display_name;
                         } catch(e) { address = "Could not get address"; }
 
                         status.innerHTML = `<b>Coordinates:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><b>Address:</b> ${address}`;
@@ -198,29 +199,37 @@ if menu == "Employee":
                             .bindPopup("📍 You are here")
                             .openPopup();
 
-                        // Send coordinates back to Streamlit
-                        const pyData = JSON.stringify({lat: lat, lon: lon, address: address});
-                        window.parent.postMessage({isStreamlitMessage: true, type: "customEvent", data: pyData}, "*");
+                        output.value = JSON.stringify({lat: lat, lon: lon, address: address});
                     });
                 }
                 </script>
             </div>
-            """, height=500, scrolling=True)
+            """
 
-            # Parse coordinates returned by component
+            st.components.v1.html(gps_html, height=600, scrolling=True)
+
+            # Step 2: User pastes the JSON into this text area
+            coords_json = st.text_area(
+                "📋 Paste the detected coordinates JSON here:",
+                placeholder='{"lat": 3.12345, "lon": 101.12345, "address": "Your detected address"}'
+            )
+
             lat, lon, address = None, None, None
             if coords_json:
+                import json
                 try:
                     loc = json.loads(coords_json)
                     lat, lon, address = loc["lat"], loc["lon"], loc["address"]
-                    st.success(f"📍 Detected Address: {address}")
+                    st.success(f"📍 Confirmed Address: {address}")
 
                     # Small preview map
+                    import folium
+                    from streamlit_folium import st_folium
                     m = folium.Map(location=[lat, lon], zoom_start=16)
                     folium.Marker([lat, lon], popup=address).add_to(m)
                     st_folium(m, width=700, height=300)
-                except:
-                    st.warning("⚠️ Unable to parse detected location.")
+                except Exception as e:
+                    st.warning(f"⚠️ Unable to parse location JSON: {e}")
             else:
                 address = "Location not detected yet"
 
@@ -230,11 +239,14 @@ if menu == "Employee":
             FILE_PATH = "requests.csv"
 
             def get_github_file():
+                import pandas as pd
+                import requests
                 url = f"https://raw.githubusercontent.com/{REPO}/main/{FILE_PATH}"
                 return pd.read_csv(url)
 
             def push_to_github(updated_df):
                 from base64 import b64encode
+                import requests
                 api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
                 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
                 r = requests.get(api_url, headers=headers)
@@ -246,6 +258,7 @@ if menu == "Employee":
 
             # ---------------- WHATSAPP ALERT ----------------
             def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
+                from twilio.rest import Client
                 try:
                     account_sid = st.secrets["TWILIO_SID"]
                     auth_token = st.secrets["TWILIO_AUTH"]
@@ -283,46 +296,44 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    # Ensure latest location is captured
-                    if coords_json:
+                    # Use confirmed address from pasted JSON
+                    if not address or address == "Location not detected yet":
+                        st.warning("⚠️ Please detect and paste your location before submitting.")
+                    else:
                         try:
-                            loc = json.loads(coords_json)
-                            lat, lon, address = loc["lat"], loc["lon"], loc["address"]
-                        except:
-                            address = "Location not detected yet"
-                    else:
-                        address = "Location not detected yet"
+                            data = get_github_file()
+                        except Exception:
+                            import pandas as pd
+                            data = pd.DataFrame(columns=[
+                                'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
+                                'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
+                            ])
 
-                    try:
-                        data = get_github_file()
-                    except Exception:
-                        data = pd.DataFrame(columns=[
-                            'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
-                            'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
-                        ])
+                        import pandas as pd
+                        from datetime import datetime
+                        new_data = pd.DataFrame({
+                            'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                            'Employee ID': [emp_id],
+                            'Name': [name],
+                            'Department': [dept],
+                            'Phone Number': [phone],
+                            'Email': [email],
+                            'Location': [address],
+                            'Status': [status],
+                            'Supplies Needed': [", ".join(supplies)],
+                            'Additional Notes': [notes],
+                            'Request Status': ["Pending"]
+                        })
 
-                    new_data = pd.DataFrame({
-                        'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                        'Employee ID': [emp_id],
-                        'Name': [name],
-                        'Department': [dept],
-                        'Phone Number': [phone],
-                        'Email': [email],
-                        'Location': [address],
-                        'Status': [status],
-                        'Supplies Needed': [", ".join(supplies)],
-                        'Additional Notes': [notes],
-                        'Request Status': ["Pending"]
-                    })
+                        updated_data = pd.concat([data, new_data], ignore_index=True)
 
-                    updated_data = pd.concat([data, new_data], ignore_index=True)
+                        if push_to_github(updated_data):
+                            st.success("✅ Your emergency request has been submitted and synced to GitHub.")
+                            st.balloons()
+                            send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
+                        else:
+                            st.error("❌ Failed to update GitHub file. Please check your token permissions.")
 
-                    if push_to_github(updated_data):
-                        st.success("✅ Your emergency request has been submitted and synced to GitHub.")
-                        st.balloons()
-                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
-                    else:
-                        st.error("❌ Failed to update GitHub file. Please check your token permissions.")
         else:
             st.warning("❌ Employee ID not found. Please check again.")
 
