@@ -131,6 +131,7 @@ with st.sidebar:
 
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -153,15 +154,23 @@ if menu == "Employee":
             # ---------------- NEW GPS LOCATION SYSTEM ----------------
             st.subheader("📍 Detect & Confirm Your Location")
 
+            import json
+
             # Ensure coords_json exists in session_state
             if 'coords_json' not in st.session_state:
                 st.session_state.coords_json = ""
+
+            # Callback to update session_state when hidden input changes
+            def update_coords(coords):
+                st.session_state.coords_json = coords
 
             coords_json = st.text_input(
                 "coords_json",
                 st.session_state.coords_json,
                 key="coords_json",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                on_change=update_coords,
+                args=(st.session_state.coords_json,)
             )
 
             gps_html = """
@@ -209,6 +218,7 @@ if menu == "Employee":
                         .bindPopup("📍 You are here<br>Accuracy ±" + acc + " m")
                         .openPopup();
 
+                    // Update Streamlit hidden input
                     coordsInput.value = JSON.stringify({lat: lat, lon: lon, address: address});
                     coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
                 },
@@ -222,9 +232,9 @@ if menu == "Employee":
 
             # Parse coordinates from session_state
             lat, lon, address = None, None, None
-            if coords_json:
+            if st.session_state.coords_json:
                 try:
-                    loc = json.loads(coords_json)
+                    loc = json.loads(st.session_state.coords_json)
                     lat, lon, address = loc["lat"], loc["lon"], loc["address"]
                     st.success(f"📍 Detected Address: {address}")
 
@@ -296,6 +306,13 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
+                    # Ensure location is updated before submission
+                    if st.session_state.coords_json:
+                        loc = json.loads(st.session_state.coords_json)
+                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
+                    else:
+                        address = "Location not detected yet"
+
                     try:
                         data = get_github_file()
                     except Exception:
