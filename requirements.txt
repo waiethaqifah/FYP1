@@ -9,3 +9,4 @@ folium
 streamlit-folium
 PyGithub
 twilio
+streamlit-javascript
