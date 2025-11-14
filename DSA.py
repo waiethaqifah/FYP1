@@ -15,6 +15,7 @@ from github import Github
 from twilio.rest import Client
 import json
 from streamlit_javascript import st_javascript
+from streamlit_geolocation import geolocation  # <-- new package
 
 # -------------------- LOAD DATA FUNCTIONS --------------------
 @st.cache_data
@@ -132,9 +133,18 @@ with st.sidebar:
 
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
-# -------------------- EMPLOYEE INTERFACE --------------------
-# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
+    import streamlit as st
+    import pandas as pd
+    import folium
+    from streamlit_folium import st_folium
+    import json
+    from datetime import datetime
+    from geopy.geocoders import Nominatim
+    from github import Github
+    import requests
+    from twilio.rest import Client
+    from streamlit_geolocation import geolocation  # <-- new package
 
     st.header("📋 Submit Your Emergency Request")
 
@@ -157,58 +167,45 @@ if menu == "Employee":
             # ---------------- GPS LOCATION ----------------
             st.subheader("📍 Detect & Confirm Your Location")
 
-            # Ensure session_state exists
-            if 'coords_json' not in st.session_state:
-                st.session_state.coords_json = ""
+            if 'location' not in st.session_state:
+                st.session_state.location = None
 
-            # Button to trigger location detection
             if st.button("📍 Detect Location"):
-                js_code = """
-                new Promise((resolve, reject) => {
-                    if (!navigator.geolocation) { reject("Geolocation not supported"); }
-                    navigator.geolocation.getCurrentPosition(async pos => {
-                        const lat = pos.coords.latitude;
-                        const lon = pos.coords.longitude;
-                        let address = "Unknown";
-                        try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-                            const data = await res.json();
-                            if (data && data.display_name) address = data.display_name;
-                        } catch(e){ address="Could not get address"; }
-                        resolve(JSON.stringify({lat: lat, lon: lon, address: address}));
-                    }, err => reject(err.message));
-                });
-                """
-                coords_json = st_javascript(js_code, key="gps_json")
-                if coords_json:
-                    st.session_state.coords_json = coords_json
-                    try:
-                        loc = json.loads(coords_json)
-                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
-                        st.success(f"📍 Detected Address: {address}")
+                loc_data = geolocation(timeout=10)  # returns {'latitude':..., 'longitude':..., 'accuracy':...}
+                if loc_data:
+                    lat = loc_data['latitude']
+                    lon = loc_data['longitude']
 
-                        # Preview map
-                        m = folium.Map(location=[lat, lon], zoom_start=16)
-                        folium.Marker([lat, lon], popup=address).add_to(m)
-                        st_folium(m, width=700, height=300)
-                    except Exception as e:
-                        st.warning(f"⚠️ Unable to parse detected location: {e}")
-            else:
-                # If already detected earlier
-                lat, lon, address = None, None, None
-                if st.session_state.coords_json:
+                    # Reverse geocode address
                     try:
-                        loc = json.loads(st.session_state.coords_json)
-                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
-                        st.success(f"📍 Detected Address: {address}")
-
-                        m = folium.Map(location=[lat, lon], zoom_start=16)
-                        folium.Marker([lat, lon], popup=address).add_to(m)
-                        st_folium(m, width=700, height=300)
+                        geolocator = Nominatim(user_agent="tetron_app")
+                        location_obj = geolocator.reverse((lat, lon), timeout=10)
+                        address = location_obj.address if location_obj else "Unknown address"
                     except:
-                        address = "Location not detected yet"
+                        address = "Could not get address"
+
+                    st.session_state.location = {'lat': lat, 'lon': lon, 'address': address}
+
+                    st.success(f"📍 Detected Address: {address}")
+
+                    # Map preview
+                    m = folium.Map(location=[lat, lon], zoom_start=16)
+                    folium.Marker([lat, lon], popup=address).add_to(m)
+                    st_folium(m, width=700, height=300)
                 else:
-                    address = "Location not detected yet"
+                    st.warning("⚠️ Could not detect location. Please allow location access in your browser.")
+
+            # Use previously detected location
+            if st.session_state.location:
+                lat = st.session_state.location['lat']
+                lon = st.session_state.location['lon']
+                address = st.session_state.location['address']
+                # show map preview
+                m = folium.Map(location=[lat, lon], zoom_start=16)
+                folium.Marker([lat, lon], popup=address).add_to(m)
+                st_folium(m, width=700, height=300)
+            else:
+                address = None
 
             # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
@@ -221,7 +218,7 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    if not address or address == "Location not detected yet":
+                    if not address:
                         st.warning("⚠️ Please detect your location before submitting.")
                     else:
                         # Fetch existing data from GitHub
