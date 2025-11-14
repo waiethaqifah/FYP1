@@ -131,15 +131,9 @@ with st.sidebar:
 
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
-    import streamlit as st
-    import pandas as pd
-    import folium
-    from streamlit_folium import st_folium
-    import json
-    from streamlit_javascript import st_javascript
-    from datetime import datetime
-
+    
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
@@ -158,35 +152,75 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- AUTOMATIC GPS DETECTION ----------------
-            st.subheader("📍 Detecting Your Location Automatically")
+            # ---------------- GPS LOCATION ----------------
+            st.subheader("📍 Detect & Confirm Your Location")
 
-            # JavaScript to get location + reverse geocode address
-            js_code = """
-            new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    reject("Geolocation not supported");
-                }
-                navigator.geolocation.getCurrentPosition(async pos => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    let address = "Unknown";
-                    try {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-                        const data = await res.json();
-                        if (data && data.display_name) address = data.display_name;
-                    } catch (e) { address = "Could not get address"; }
-                    resolve(JSON.stringify({lat: lat, lon: lon, address: address}));
-                }, err => reject(err.message));
-            });
-            """
+            # Ensure session_state exists
+            if 'coords_json' not in st.session_state:
+                st.session_state.coords_json = ""
 
-            coords_json = st_javascript(js_code, key="gps_json")
+            # Button to trigger detection
+            if st.button("📍 Detect Location"):
+                gps_html = """
+                <div style="text-align:center;">
+                    <p id="status">Waiting for location...</p>
+                    <div id="map" style="height:400px; width:100%; margin-top:10px;"></div>
 
+                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+                    <script>
+                    async function detectLocation() {
+                        const status = document.getElementById('status');
+                        if (!navigator.geolocation) {
+                            status.innerHTML = "Geolocation not supported.";
+                            return;
+                        }
+                        navigator.geolocation.getCurrentPosition(async (pos) => {
+                            const lat = pos.coords.latitude;
+                            const lon = pos.coords.longitude;
+                            const acc = pos.coords.accuracy;
+                            let address = "Unknown";
+                            try {
+                                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+                                const data = await res.json();
+                                if (data && data.display_name) address = data.display_name;
+                            } catch(e) { address = "Could not get address"; }
+
+                            status.innerHTML = `<b>Coordinates:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><b>Address:</b> ${address}`;
+
+                            var map = L.map('map').setView([lat, lon], 16);
+                            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                maxZoom: 19,
+                                attribution: '&copy; OpenStreetMap contributors'
+                            }).addTo(map);
+
+                            L.marker([lat, lon]).addTo(map)
+                                .bindPopup("📍 You are here<br>Accuracy ±" + acc + " m")
+                                .openPopup();
+
+                            // Send data back to Streamlit via text area
+                            const streamlitEvent = new CustomEvent('streamlit:setComponentValue', {
+                                detail: JSON.stringify({lat: lat, lon: lon, address: address})
+                            });
+                            document.dispatchEvent(streamlitEvent);
+                        }, (err) => {status.innerHTML = "Error: " + err.message}, {enableHighAccuracy:true});
+                    }
+                    detectLocation();
+                    </script>
+                </div>
+                """
+                # Render HTML/JS and capture returned value into coords_json
+                coords_json = st.components.v1.html(gps_html, height=500, scrolling=True)
+
+                # Store in session_state for use in form submission
+                st.session_state.coords_json = coords_json
+
+            # ---------------- PARSE DETECTED LOCATION ----------------
             lat, lon, address = None, None, None
-            if coords_json:
+            if st.session_state.coords_json:
                 try:
-                    loc = json.loads(coords_json)
+                    loc = json.loads(st.session_state.coords_json)
                     lat, lon, address = loc["lat"], loc["lon"], loc["address"]
                     st.success(f"📍 Detected Address: {address}")
 
@@ -197,7 +231,7 @@ if menu == "Employee":
                 except Exception as e:
                     st.warning(f"⚠️ Unable to parse detected location: {e}")
             else:
-                st.warning("⚠️ Waiting for location...")
+                address = "Location not detected yet"
 
             # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
@@ -210,8 +244,8 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    if not address:
-                        st.warning("⚠️ Location not detected yet. Please wait a few seconds.")
+                    if not address or address == "Location not detected yet":
+                        st.warning("⚠️ Please detect your location before submitting.")
                     else:
                         # Fetch existing data from GitHub
                         try:
