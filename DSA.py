@@ -132,6 +132,7 @@ with st.sidebar:
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -151,90 +152,66 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- NEW GPS LOCATION SYSTEM ----------------
+            # ---------------- GPS LOCATION ----------------
             st.subheader("📍 Detect & Confirm Your Location")
 
             import json
 
-            # Ensure coords_json exists in session_state
-            if 'coords_json' not in st.session_state:
-                st.session_state.coords_json = ""
-
-            # Callback to update session_state when hidden input changes
-            def update_coords(coords):
-                st.session_state.coords_json = coords
-
-            coords_json = st.text_input(
-                "coords_json",
-                st.session_state.coords_json,
-                key="coords_json",
-                label_visibility="collapsed",
-                on_change=update_coords,
-                args=(st.session_state.coords_json,)
-            )
-
-            gps_html = """
-            <div style="text-align:center; margin-bottom:10px;">
-                <button onclick="getLocation()" style="padding:10px 20px; font-size:16px;">📍 Detect My Location</button>
-                <p id="status" style="margin-top:5px;">Waiting for location...</p>
-                <input type="hidden" id="coords_json">
+            # Streamlit component to detect GPS and return coordinates to Python
+            coords_json = st.components.v1.html("""
+            <div style="text-align:center;">
+                <button onclick="getLocation()">📍 Detect My Location</button>
+                <p id="status">Waiting for location...</p>
                 <div id="map" style="height:400px; width:100%; margin-top:10px;"></div>
-            </div>
 
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-            <script>
-            async function getLocation() {
-                const status = document.getElementById('status');
-                const coordsInput = document.getElementById('coords_json');
+                <script>
+                function getLocation() {
+                    const status = document.getElementById('status');
+                    if (!navigator.geolocation) {
+                        status.innerHTML = "Geolocation not supported by this browser.";
+                        return;
+                    }
 
-                if (!navigator.geolocation) {
-                    status.innerHTML = "Geolocation not supported by this browser.";
-                    return;
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lon = pos.coords.longitude;
+                        let address = "Unknown";
+
+                        try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+                            const data = await res.json();
+                            if (data && data.display_name) address = data.display_name;
+                        } catch(e) { address = "Could not get address"; }
+
+                        status.innerHTML = `<b>Coordinates:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><b>Address:</b> ${address}`;
+
+                        var map = L.map('map').setView([lat, lon], 16);
+                        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '&copy; OpenStreetMap contributors'
+                        }).addTo(map);
+
+                        L.marker([lat, lon]).addTo(map)
+                            .bindPopup("📍 You are here")
+                            .openPopup();
+
+                        // Send coordinates back to Streamlit
+                        const pyData = JSON.stringify({lat: lat, lon: lon, address: address});
+                        window.parent.postMessage({isStreamlitMessage: true, type: "customEvent", data: pyData}, "*");
+                    });
                 }
+                </script>
+            </div>
+            """, height=500, scrolling=True)
 
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    const acc = pos.coords.accuracy;
-
-                    let address = "Unknown";
-                    try {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-                        const data = await res.json();
-                        if(data && data.display_name) address = data.display_name;
-                    } catch(e) { address = "Could not get address"; }
-
-                    status.innerHTML = `<b>Coordinates:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><b>Address:</b> ${address}`;
-
-                    var map = L.map('map').setView([lat, lon], 16);
-                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; OpenStreetMap contributors'
-                    }).addTo(map);
-
-                    L.marker([lat, lon]).addTo(map)
-                        .bindPopup("📍 You are here<br>Accuracy ±" + acc + " m")
-                        .openPopup();
-
-                    // Update Streamlit hidden input
-                    coordsInput.value = JSON.stringify({lat: lat, lon: lon, address: address});
-                    coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
-                },
-                (err) => { status.innerHTML = "Error: " + err.message; },
-                { enableHighAccuracy:true });
-            }
-            </script>
-            """
-
-            st.components.v1.html(gps_html, height=500)
-
-            # Parse coordinates from session_state
+            # Parse coordinates returned by component
             lat, lon, address = None, None, None
-            if st.session_state.coords_json:
+            if coords_json:
                 try:
-                    loc = json.loads(st.session_state.coords_json)
+                    loc = json.loads(coords_json)
                     lat, lon, address = loc["lat"], loc["lon"], loc["address"]
                     st.success(f"📍 Detected Address: {address}")
 
@@ -306,10 +283,13 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    # Ensure location is updated before submission
-                    if st.session_state.coords_json:
-                        loc = json.loads(st.session_state.coords_json)
-                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
+                    # Ensure latest location is captured
+                    if coords_json:
+                        try:
+                            loc = json.loads(coords_json)
+                            lat, lon, address = loc["lat"], loc["lon"], loc["address"]
+                        except:
+                            address = "Location not detected yet"
                     else:
                         address = "Location not detected yet"
 
