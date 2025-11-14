@@ -14,6 +14,7 @@ from streamlit_folium import st_folium
 from github import Github
 from twilio.rest import Client
 import json
+from streamlit_javascript import st_javascript
 
 # -------------------- LOAD DATA FUNCTIONS --------------------
 @st.cache_data
@@ -132,8 +133,9 @@ with st.sidebar:
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
-    
+
     st.header("📋 Submit Your Emergency Request")
 
     emp_id = st.text_input("Enter Your Employee ID")
@@ -159,79 +161,54 @@ if menu == "Employee":
             if 'coords_json' not in st.session_state:
                 st.session_state.coords_json = ""
 
-            # Button to trigger detection
+            # Button to trigger location detection
             if st.button("📍 Detect Location"):
-                gps_html = """
-                <div style="text-align:center;">
-                    <p id="status">Waiting for location...</p>
-                    <div id="map" style="height:400px; width:100%; margin-top:10px;"></div>
-
-                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-                    <script>
-                    async function detectLocation() {
-                        const status = document.getElementById('status');
-                        if (!navigator.geolocation) {
-                            status.innerHTML = "Geolocation not supported.";
-                            return;
-                        }
-                        navigator.geolocation.getCurrentPosition(async (pos) => {
-                            const lat = pos.coords.latitude;
-                            const lon = pos.coords.longitude;
-                            const acc = pos.coords.accuracy;
-                            let address = "Unknown";
-                            try {
-                                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-                                const data = await res.json();
-                                if (data && data.display_name) address = data.display_name;
-                            } catch(e) { address = "Could not get address"; }
-
-                            status.innerHTML = `<b>Coordinates:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><b>Address:</b> ${address}`;
-
-                            var map = L.map('map').setView([lat, lon], 16);
-                            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                maxZoom: 19,
-                                attribution: '&copy; OpenStreetMap contributors'
-                            }).addTo(map);
-
-                            L.marker([lat, lon]).addTo(map)
-                                .bindPopup("📍 You are here<br>Accuracy ±" + acc + " m")
-                                .openPopup();
-
-                            // Send data back to Streamlit via text area
-                            const streamlitEvent = new CustomEvent('streamlit:setComponentValue', {
-                                detail: JSON.stringify({lat: lat, lon: lon, address: address})
-                            });
-                            document.dispatchEvent(streamlitEvent);
-                        }, (err) => {status.innerHTML = "Error: " + err.message}, {enableHighAccuracy:true});
-                    }
-                    detectLocation();
-                    </script>
-                </div>
+                js_code = """
+                new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) { reject("Geolocation not supported"); }
+                    navigator.geolocation.getCurrentPosition(async pos => {
+                        const lat = pos.coords.latitude;
+                        const lon = pos.coords.longitude;
+                        let address = "Unknown";
+                        try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+                            const data = await res.json();
+                            if (data && data.display_name) address = data.display_name;
+                        } catch(e){ address="Could not get address"; }
+                        resolve(JSON.stringify({lat: lat, lon: lon, address: address}));
+                    }, err => reject(err.message));
+                });
                 """
-                # Render HTML/JS and capture returned value into coords_json
-                coords_json = st.components.v1.html(gps_html, height=500, scrolling=True)
+                coords_json = st_javascript(js_code, key="gps_json")
+                if coords_json:
+                    st.session_state.coords_json = coords_json
+                    try:
+                        loc = json.loads(coords_json)
+                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
+                        st.success(f"📍 Detected Address: {address}")
 
-                # Store in session_state for use in form submission
-                st.session_state.coords_json = coords_json
-
-            # ---------------- PARSE DETECTED LOCATION ----------------
-            lat, lon, address = None, None, None
-            if st.session_state.coords_json:
-                try:
-                    loc = json.loads(st.session_state.coords_json)
-                    lat, lon, address = loc["lat"], loc["lon"], loc["address"]
-                    st.success(f"📍 Detected Address: {address}")
-
-                    # Small preview map
-                    m = folium.Map(location=[lat, lon], zoom_start=16)
-                    folium.Marker([lat, lon], popup=address).add_to(m)
-                    st_folium(m, width=700, height=300)
-                except Exception as e:
-                    st.warning(f"⚠️ Unable to parse detected location: {e}")
+                        # Preview map
+                        m = folium.Map(location=[lat, lon], zoom_start=16)
+                        folium.Marker([lat, lon], popup=address).add_to(m)
+                        st_folium(m, width=700, height=300)
+                    except Exception as e:
+                        st.warning(f"⚠️ Unable to parse detected location: {e}")
             else:
-                address = "Location not detected yet"
+                # If already detected earlier
+                lat, lon, address = None, None, None
+                if st.session_state.coords_json:
+                    try:
+                        loc = json.loads(st.session_state.coords_json)
+                        lat, lon, address = loc["lat"], loc["lon"], loc["address"]
+                        st.success(f"📍 Detected Address: {address}")
+
+                        m = folium.Map(location=[lat, lon], zoom_start=16)
+                        folium.Marker([lat, lon], popup=address).add_to(m)
+                        st_folium(m, width=700, height=300)
+                    except:
+                        address = "Location not detected yet"
+                else:
+                    address = "Location not detected yet"
 
             # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
