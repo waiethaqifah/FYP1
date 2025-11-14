@@ -13,6 +13,7 @@ import folium
 from streamlit_folium import st_folium
 from github import Github
 from twilio.rest import Client
+import json
 
 # -------------------- LOAD DATA FUNCTIONS --------------------
 @st.cache_data
@@ -152,8 +153,7 @@ if menu == "Employee":
             st.dataframe(emp_info)
 
             # ---------------- NEW GPS LOCATION SYSTEM ----------------
-           import json
-
+           
             st.subheader("📍 Detect & Confirm Your Location")
             
             # Make sure coords_json exists in session_state
