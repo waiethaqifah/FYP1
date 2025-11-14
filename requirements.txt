@@ -10,3 +10,4 @@ streamlit-folium
 PyGithub
 twilio
 streamlit-javascript
+streamlit-geolocation
