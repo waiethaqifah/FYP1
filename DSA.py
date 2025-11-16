@@ -294,7 +294,7 @@ if menu == "Employee":
         else:
             st.warning("❌ Employee ID not found. Please check again.")
     # ---------------- MOCK REQUEST GENERATOR ----------------
-            st.markdown("---")
+     st.markdown("---")
             st.subheader("🧪 Mock Data Generation (Testing Only)")
         
             def generate_mock_requests(n=40):
@@ -371,7 +371,7 @@ if menu == "Employee":
         
             if st.button("Generate 40 Mock Requests"):
                 with st.spinner("Generating 40 mock requests and sending WhatsApp alerts..."):
-                    generate_mock_requests(40)
+                    generate_mock_requests(40)       
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
@@ -463,12 +463,4 @@ if menu == "Admin":
     else:
         st.info("No valid timestamp entries available for request trend analysis.")
 
-    st.subheader("🧊 3D Interactive Chart: Supplies vs Status")
-    if not data.empty:
-        plot_data = data.copy()
-        plot_data['Supplies Needed'] = plot_data['Supplies Needed'].fillna('None')
-        fig = px.scatter_3d(plot_data, x='Status', y='Supplies Needed', z='Request Status',
-                            color='Status', symbol='Request Status')
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Not enough data to display 3D chart.")
+   
