@@ -152,18 +152,41 @@ if menu == "Employee":
 
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
+            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
             
-            # --- 1. Get GPS from browser ---
+            # --- 1. Get GPS + Address from browser ---
             location = streamlit_js_eval(
                 js_expressions="""
                     new Promise((resolve, reject) => {
                         navigator.geolocation.getCurrentPosition(
-                            pos => resolve({
-                                lat: pos.coords.latitude,
-                                lon: pos.coords.longitude,
-                                acc: pos.coords.accuracy
-                            }),
+                            async (pos) => {
+                                let lat = pos.coords.latitude;
+                                let lon = pos.coords.longitude;
+                                let acc = pos.coords.accuracy;
+            
+                                // Reverse geocoding using Nominatim
+                                try {
+                                    let url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+                                    let response = await fetch(url, { headers: { "Accept": "application/json" }});
+                                    let data = await response.json();
+            
+                                    resolve({
+                                        lat: lat,
+                                        lon: lon,
+                                        acc: acc,
+                                        address: data.display_name || "Address not found"
+                                    });
+            
+                                } catch (e) {
+                                    resolve({
+                                        lat: lat,
+                                        lon: lon,
+                                        acc: acc,
+                                        address: "Reverse geocoding failed"
+                                    });
+                                }
+                            },
                             err => resolve(null),
                             { enableHighAccuracy: true }
                         );
@@ -179,7 +202,12 @@ if menu == "Employee":
                 lat = location["lat"]
                 lon = location["lon"]
                 acc = location["acc"]
+                address = location["address"]
             
+                st.write("### 🏠 Address")
+                st.write(address)
+            
+                st.write("### 🌐 Coordinates")
                 st.write("*Latitude:*", lat)
                 st.write("*Longitude:*", lon)
                 st.write("*Accuracy:*", acc, "meters")
@@ -194,7 +222,7 @@ if menu == "Employee":
                 <script>
                     var map = L.map('map').setView([{lat}, {lon}], 16);
             
-                    // ⭐ Modern High-Detail Map – CARTO Voyager
+                    // ⭐ CARTO Voyager tiles
                     L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
                         maxZoom: 19,
                         attribution: '&copy; OpenStreetMap & CartoDB'
@@ -210,7 +238,7 @@ if menu == "Employee":
                 st.components.v1.html(leaflet_map, height=470)
             
             else:
-                st.info("Click *Allow* when your browser asks for GPS location.")
+                st.info("Click *Allow* when your browser asks for GPS location.")
 
 
             # ---------------- GITHUB CONNECTION ----------------
