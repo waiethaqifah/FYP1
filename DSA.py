@@ -248,7 +248,7 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    if final_address == "":
+                    if location  == "":
                         st.error("❌ Please detect your location first.")
                         st.stop()
 
