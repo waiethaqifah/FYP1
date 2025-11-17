@@ -14,3 +14,4 @@ Timestamp,Employee ID,Name,Department,Phone Number,Email,Location,Status,Supplie
 2025-11-17 01:44:06,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,Unknown Location,Safe,,,Pending
 2025-11-17 02:54:45,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,"{'lat': 4.3883426, 'lon': 100.9694079, 'acc': 6979.32000532793}",Safe,Blanket,,Pending
 2025-11-17 03:04:15,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,"{'lat': 4.3883426, 'lon': 100.9694079, 'acc': 6979.32000532793, 'address': 'Petronas University of Technology, Universiti Teknologi Petronas, Persiaran Desa Kediaman, Seri Iskandar, Perak Tengah, Perak, 32610, Malaysia'}",Safe,"Medical Kit, Baby Supplies",,Pending
+2025-11-17 03:12:02,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,"Petronas University of Technology, Universiti Teknologi Petronas, Ipoh-Lumut Highway, Seri Iskandar, Perak Tengah, Perak, 32610, Malaysia",Safe,"Medical Kit, Water",,Pending
