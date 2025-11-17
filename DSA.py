@@ -150,69 +150,67 @@ if menu == "Employee":
             st.dataframe(emp_info)
 
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
+            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
-
+            
             location_html = """
             <div style="max-width:700px; margin:auto;">
                 <button onclick="getLocation()" style="width:100%; padding:12px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:5px;">
                     📍 Detect My Location
                 </button>
                 <p id="loc_status" style="text-align:center; margin-top:8px;">Waiting for location...</p>
-
+            
                 <div id="map" style="height:420px; width:100%; border:1px solid #ccc; border-radius:8px; margin-top:10px;"></div>
             </div>
-
+            
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+            
             <script>
             var map = L.map('map', {tap:false}).setView([20, 0], 2);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
-
+            
             var marker;
-
-            function updateStreamlit(lat, lon) {
-                const hidden_input = window.parent.document.querySelector('textarea[data-testid="stTextArea-input"]');
-                if (!hidden_input) return;
-                const event = new Event('input', { bubbles: true });
-                hidden_input.value = lat + "," + lon;
-                hidden_input.dispatchEvent(event);
+            
+            // --- FIXED: correct method to send data to Streamlit ---
+            function sendToStreamlit(text) {
+                window.parent.postMessage({type: "streamlit:setComponentValue", value: text}, "*");
             }
-
+            
             function setMarker(lat, lon) {
                 if (marker) { map.removeLayer(marker); }
                 marker = L.marker([lat, lon], {draggable:true}).addTo(map);
-
+            
                 marker.on('dragend', function(e) {
                     let pos = marker.getLatLng();
-                    updateStreamlit(pos.lat.toFixed(6), pos.lng.toFixed(6));
+                    sendToStreamlit(pos.lat.toFixed(6) + "," + pos.lng.toFixed(6));
                 });
-
+            
                 marker.bindPopup("📍 Your Location").openPopup();
-                updateStreamlit(lat, lon);
+                sendToStreamlit(lat + "," + lon);
             }
-
+            
             function getLocation() {
                 const stat = document.getElementById('loc_status');
-
+            
                 if (!navigator.geolocation) {
                     stat.innerHTML = "Geolocation not supported.";
                     return;
                 }
-
+            
                 stat.innerHTML = "Detecting location...";
-
+            
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
                         const lat = pos.coords.latitude.toFixed(6);
                         const lon = pos.coords.longitude.toFixed(6);
                         const acc = pos.coords.accuracy.toFixed(1);
-
+            
                         stat.innerHTML = `Latitude: ${lat} | Longitude: ${lon} | Accuracy: ±${acc}m`;
-
+            
                         map.setView([lat, lon], 17);
                         setMarker(lat, lon);
                     },
@@ -224,31 +222,34 @@ if menu == "Employee":
             }
             </script>
             """
-
-            st.components.v1.html(location_html, height=520)
-
-            coords = st.text_area("GPS", label_visibility="collapsed")
-
+            
+            coords = st.components.v1.html(location_html, height=520)
+            
+            # Correct Streamlit receiver
+            coords_value = st.text_input("GPS Coordinates (auto)", key="gps_auto")
+            
             final_address = ""
-
-            if coords:
+            
+            if coords_value:
                 try:
-                    lat, lon = map(float, coords.split(","))
-
+                    lat, lon = map(float, coords_value.split(","))
+            
                     geolocator = Nominatim(user_agent="tetron_dms")
                     loc = geolocator.reverse((lat, lon), language="en")
-
+            
                     if loc:
                         final_address = loc.address
                         st.success(f"📍 Detected Location: {final_address}")
                     else:
                         final_address = f"{lat:.4f}, {lon:.4f}"
-                        st.warning("⚠️ Could not retrieve full address, saving coordinates only.")
-
+                        st.warning("⚠️ Unable to retrieve full address — using coordinates only")
+            
                 except:
-                    st.warning("⚠️ Error processing GPS data.")
+                    st.warning("⚠️ GPS data format invalid.")
+            
             else:
                 st.info("📌 Click 'Detect My Location' to start.")
+
 
             # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
