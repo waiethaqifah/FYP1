@@ -154,56 +154,63 @@ if menu == "Employee":
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
             
-            js_code = """
-            new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    async (pos) => {
-                        let lat = pos.coords.latitude;
-                        let lon = pos.coords.longitude;
-                        let acc = pos.coords.accuracy;
+            # --- 1. Get GPS from browser ---
+            location = streamlit_js_eval(
+                js_expressions="""
+                    new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({
+                                lat: pos.coords.latitude,
+                                lon: pos.coords.longitude,
+                                acc: pos.coords.accuracy
+                            }),
+                            err => resolve(null),
+                            { enableHighAccuracy: true }
+                        );
+                    });
+                """,
+                key="gps",
+            )
             
-                        // Reverse geocode using OpenStreetMap Nominatim
-                        try {
-                            let url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
-                            let response = await fetch(url, {
-                                headers: { "Accept": "application/json" }
-                            });
-                            let data = await response.json();
-            
-                            resolve({
-                                lat: lat,
-                                lon: lon,
-                                acc: acc,
-                                address: data.display_name || "Address not found"
-                            });
-                        } catch (e) {
-                            resolve({
-                                lat: lat,
-                                lon: lon,
-                                acc: acc,
-                                address: "Reverse geocoding failed"
-                            });
-                        }
-                    },
-                    (err) => resolve(null),
-                    { enableHighAccuracy: true }
-                );
-            });
-            """
-            
-            location = streamlit_js_eval(js_expressions=js_code, key="gps_with_address")
-            
+            # --- 2. If GPS found ---
             if location:
-                st.success("Location Retrieved Successfully!")
-                st.write(f"**Latitude:** {location['lat']}")
-                st.write(f"**Longitude:** {location['lon']}")
-                st.write(f"**Accuracy:** ±{round(location['acc'],1)} m")
-                st.write(f"**Address:** {location['address']}")
+                st.success("GPS Received! 🎉")
             
-                st.map({"lat": [location['lat']], "lon": [location['lon']]})
+                lat = location["lat"]
+                lon = location["lon"]
+                acc = location["acc"]
+            
+                st.write("*Latitude:*", lat)
+                st.write("*Longitude:*", lon)
+                st.write("*Accuracy:*", acc, "meters")
+            
+                # --- 3. Insert Leaflet map with CARTO Voyager ---
+                leaflet_map = f"""
+                <div id="map" style="height: 450px; width: 100%; border-radius: 10px;"></div>
+            
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+                <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+            
+                <script>
+                    var map = L.map('map').setView([{lat}, {lon}], 16);
+            
+                    // ⭐ Modern High-Detail Map – CARTO Voyager
+                    L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+                        maxZoom: 19,
+                        attribution: '&copy; OpenStreetMap & CartoDB'
+                    }}).addTo(map);
+            
+                    // Marker at GPS location
+                    L.marker([{lat}, {lon}]).addTo(map)
+                        .bindPopup("📍 You are here<br>Accuracy: ±{acc} m")
+                        .openPopup();
+                </script>
+                """
+            
+                st.components.v1.html(leaflet_map, height=470)
             
             else:
-                st.info("Please allow location permission on your device.")
+                st.info("Click *Allow* when your browser asks for GPS location.")
 
 
             # ---------------- GITHUB CONNECTION ----------------
