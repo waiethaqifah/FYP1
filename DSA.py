@@ -129,6 +129,7 @@ with st.sidebar:
         st.rerun()
 
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -148,69 +149,105 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- LOCATION AUTO-DETECTION ----------------
-            st.subheader("📍 Confirm Your Location (Auto-Detected)")
+            # ---------------- LOCATION AUTO-DETECTION + MAP ----------------
+            st.subheader("📍 Auto Detect Location")
 
-            # Hidden input that receives detected location from JS
-            location_input = st.empty()
-            location_json = location_input.text_input(
-                "location_json", value="", label_visibility="collapsed"
-            )
-
-            # HTML + JavaScript location detection
-            st.components.v1.html(
-                """
-                <button onclick="getLocation()" 
-                    style="padding: 10px; font-size: 16px; margin-bottom: 10px;">
-                    Detect Location
+            location_html = """
+            <div style="max-width:700px; margin:auto;">
+                <button onclick="getLocation()" style="width:100%; padding:12px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:5px;">
+                    📍 Detect My Location
                 </button>
+                <p id="loc_status" style="text-align:center; margin-top:8px;">Waiting for location...</p>
 
-                <p id="status"></p>
+                <div id="map" style="height:420px; width:100%; border:1px solid #ccc; border-radius:8px; margin-top:10px;"></div>
+            </div>
 
-                <script>
-                function getLocation() {
-                    document.getElementById("status").innerHTML = "Detecting your location...";
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(success, error);
-                    } else {
-                        document.getElementById("status").innerHTML = "Geolocation is not supported.";
-                    }
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+            <script>
+            var map = L.map('map', {tap:false}).setView([20, 0], 2);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            var marker;
+
+            function updateStreamlit(lat, lon) {
+                const hidden_input = window.parent.document.querySelector('textarea[data-testid="stTextArea-input"]');
+                const event = new Event('input', { bubbles: true });
+                hidden_input.value = lat + "," + lon;
+                hidden_input.dispatchEvent(event);
+            }
+
+            function setMarker(lat, lon) {
+                if (marker) { map.removeLayer(marker); }
+                marker = L.marker([lat, lon], {draggable:true}).addTo(map);
+
+                marker.on('dragend', function(e) {
+                    let pos = marker.getLatLng();
+                    updateStreamlit(pos.lat.toFixed(6), pos.lng.toFixed(6));
+                });
+
+                marker.bindPopup("📍 Your Location").openPopup();
+                updateStreamlit(lat, lon);
+            }
+
+            function getLocation() {
+                const stat = document.getElementById('loc_status');
+
+                if (!navigator.geolocation) {
+                    stat.innerHTML = "Geolocation not supported.";
+                    return;
                 }
 
-                function success(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
+                stat.innerHTML = "Detecting location...";
 
-                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            const place = data.display_name;
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude.toFixed(6);
+                        const lon = pos.coords.longitude.toFixed(6);
+                        const acc = pos.coords.accuracy.toFixed(1);
 
-                            const streamlitInput = window.parent.document.querySelector(
-                                'input[aria-label="location_json"]'
-                            );
-                            streamlitInput.value = place;
-                            streamlitInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        stat.innerHTML = `Latitude: ${lat} | Longitude: ${lon} | Accuracy: ±${acc}m`;
 
-                            document.getElementById("status").innerHTML = 
-                                "📍 Location detected: " + place;
-                        })
-                        .catch(err => {
-                            document.getElementById("status").innerHTML = "Reverse geocoding failed.";
-                        });
-                }
+                        map.setView([lat, lon], 17);
+                        setMarker(lat, lon);
+                    },
+                    (err) => {
+                        stat.innerHTML = "Error: " + err.message;
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+            </script>
+            """
 
-                function error() {
-                    document.getElementById("status").innerHTML = "Unable to retrieve location.";
-                }
-                </script>
-                """,
-                height=200,
-            )
+            st.components.v1.html(location_html, height=520)
 
-            # Show final detected location
-            if location_json:
-                st.success(f"📍 Final Location: {location_json}")
+            coords = st.text_area("GPS", label_visibility="collapsed")
+
+            final_address = ""
+
+            if coords:
+                try:
+                    lat, lon = map(float, coords.split(","))
+
+                    geolocator = Nominatim(user_agent="tetron_dms")
+                    loc = geolocator.reverse((lat, lon), language="en")
+
+                    if loc:
+                        final_address = loc.address
+                        st.success(f"📍 Detected Location: {final_address}")
+                    else:
+                        final_address = f"{lat:.4f}, {lon:.4f}"
+                        st.warning("⚠️ Could not retrieve full address.")
+
+                except:
+                    st.warning("⚠️ Error processing GPS data.")
+            else:
+                st.info("📌 Click 'Detect My Location' to start.")
 
             # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -225,10 +262,13 @@ if menu == "Employee":
                 from base64 import b64encode
                 api_url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
                 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-                r = requests.get(api_url, headers=headers)
-                sha = r.json().get("sha")
+
+                current = requests.get(api_url, headers=headers)
+                sha = current.json().get("sha")
+
                 content = b64encode(updated_df.to_csv(index=False).encode()).decode()
-                data = {"message": "Update requests.csv via Streamlit", "content": content, "sha": sha}
+                data = {"message": "Update requests.csv", "content": content, "sha": sha}
+
                 result = requests.put(api_url, json=data, headers=headers)
                 return result.status_code in [200, 201]
 
@@ -239,69 +279,72 @@ if menu == "Employee":
                     auth_token = st.secrets["TWILIO_AUTH"]
                     from_whatsapp = st.secrets["TWILIO_WHATSAPP_FROM"]
                     admin_group_numbers = [num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")]
+
                     client = Client(account_sid, auth_token)
-                    message_body = (
+
+                    msg = (
                         f"🚨 *New Emergency Request Submitted!*\n\n"
                         f"👤 Name: {emp_name}\n"
                         f"🏢 Department: {dept}\n"
                         f"📍 Location: {location}\n"
                         f"📊 Status: {status}\n"
-                        f"📦 Supplies Needed: {supplies}\n"
-                        f"📝 Notes: {notes}\n\n"
-                        f"Please check the admin dashboard for details."
+                        f"📦 Supplies: {supplies}\n"
+                        f"📝 Notes: {notes}\n"
                     )
+
                     for admin in admin_group_numbers:
-                        client.messages.create(from_=from_whatsapp, to=admin, body=message_body)
-                    st.info("📲 WhatsApp alert sent to admin group.")
+                        client.messages.create(from_=from_whatsapp, to=admin, body=msg)
+
                 except Exception as e:
-                    st.warning(f"⚠️ Failed to send WhatsApp alert: {e}")
+                    st.warning(f"⚠️ WhatsApp error: {e}")
 
             # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-                supplies = st.multiselect(
-                    "Supplies Needed",
-                    ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
-                )
+                supplies = st.multiselect("Supplies Needed",
+                                          ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"])
                 notes = st.text_area("Additional Notes")
+
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    address = location_json if location_json.strip() else "Unknown Location"
+                    if final_address == "":
+                        st.error("❌ Please detect your location first.")
+                        st.stop()
 
                     try:
                         data = get_github_file()
-                    except Exception:
+                    except:
                         data = pd.DataFrame(columns=[
                             'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
                             'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
                         ])
 
-                    new_data = pd.DataFrame({
+                    new_row = pd.DataFrame({
                         'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
                         'Employee ID': [emp_id],
                         'Name': [name],
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [address],
+                        'Location': [final_address],   # SAVE ONLY PLACE NAME
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
                         'Request Status': ["Pending"]
                     })
 
-                    updated_data = pd.concat([data, new_data], ignore_index=True)
+                    updated = pd.concat([data, new_row], ignore_index=True)
 
-                    if push_to_github(updated_data):
-                        st.success("✅ Your emergency request has been submitted and synced to GitHub.")
+                    if push_to_github(updated):
+                        st.success("✅ Request submitted successfully!")
                         st.balloons()
-                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
+                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), final_address, notes)
                     else:
-                        st.error("❌ Failed to update GitHub file. Please check your token permissions.")
+                        st.error("❌ Failed to update GitHub.")
 
         else:
-            st.warning("❌ Employee ID not found. Please check again.")
+            st.warning("❌ Employee ID not found.")
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
