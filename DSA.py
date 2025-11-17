@@ -154,37 +154,56 @@ if menu == "Employee":
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
             
-            # Run JS to get GPS
-            location = streamlit_js_eval(
-                js_expressions="""
-                    new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(
-                            pos => resolve({
-                                lat: pos.coords.latitude,
-                                lon: pos.coords.longitude,
-                                acc: pos.coords.accuracy
-                            }),
-                            err => resolve(null),
-                            { enableHighAccuracy: true }
-                        );
-                    });
-                """,
-                key="get_gps",
-            )
+            js_code = """
+            new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                        let lat = pos.coords.latitude;
+                        let lon = pos.coords.longitude;
+                        let acc = pos.coords.accuracy;
+            
+                        // Reverse geocode using OpenStreetMap Nominatim
+                        try {
+                            let url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+                            let response = await fetch(url, {
+                                headers: { "Accept": "application/json" }
+                            });
+                            let data = await response.json();
+            
+                            resolve({
+                                lat: lat,
+                                lon: lon,
+                                acc: acc,
+                                address: data.display_name || "Address not found"
+                            });
+                        } catch (e) {
+                            resolve({
+                                lat: lat,
+                                lon: lon,
+                                acc: acc,
+                                address: "Reverse geocoding failed"
+                            });
+                        }
+                    },
+                    (err) => resolve(null),
+                    { enableHighAccuracy: true }
+                );
+            });
+            """
+            
+            location = streamlit_js_eval(js_expressions=js_code, key="gps_with_address")
             
             if location:
-                st.success("GPS Received!")
-                lat = location["lat"]
-                lon = location["lon"]
-                acc = location["acc"]
-                
-                st.write("Latitude:", lat)
-                st.write("Longitude:", lon)
-                st.write("Accuracy:", acc, "m")
+                st.success("Location Retrieved Successfully!")
+                st.write(f"**Latitude:** {location['lat']}")
+                st.write(f"**Longitude:** {location['lon']}")
+                st.write(f"**Accuracy:** ±{round(location['acc'],1)} m")
+                st.write(f"**Address:** {location['address']}")
             
-                st.map({"lat": [lat], "lon": [lon]})
+                st.map({"lat": [location['lat']], "lon": [location['lon']]})
+            
             else:
-                st.info("Click 'Allow' when your browser asks for location.")
+                st.info("Please allow location permission on your device.")
 
 
             # ---------------- GITHUB CONNECTION ----------------
