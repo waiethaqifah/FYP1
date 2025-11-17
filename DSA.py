@@ -131,6 +131,7 @@ with st.sidebar:
 
 # -------------------- EMPLOYEE INTERFACE --------------------
 # -------------------- EMPLOYEE INTERFACE --------------------
+# -------------------- EMPLOYEE INTERFACE --------------------
 if menu == "Employee":
     st.header("📋 Submit Your Emergency Request")
 
@@ -150,12 +151,10 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
-            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
-            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
+            # ---------------- LOCATION AUTO-DETECTION + MAP ----------------
             st.subheader("📍 Auto Detect Location")
             
-            # --- 1. Get GPS + Address from browser ---
+            # --- 1. Get GPS + Reverse Geocode to Address ---
             location = streamlit_js_eval(
                 js_expressions="""
                     new Promise((resolve, reject) => {
@@ -164,20 +163,19 @@ if menu == "Employee":
                                 let lat = pos.coords.latitude;
                                 let lon = pos.coords.longitude;
                                 let acc = pos.coords.accuracy;
-            
-                                // Reverse geocoding using Nominatim
+
                                 try {
                                     let url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
                                     let response = await fetch(url, { headers: { "Accept": "application/json" }});
                                     let data = await response.json();
-            
+
                                     resolve({
                                         lat: lat,
                                         lon: lon,
                                         acc: acc,
                                         address: data.display_name || "Address not found"
                                     });
-            
+
                                 } catch (e) {
                                     resolve({
                                         lat: lat,
@@ -198,48 +196,45 @@ if menu == "Employee":
             # --- 2. If GPS found ---
             if location:
                 st.success("GPS Received! 🎉")
-            
+
                 lat = location["lat"]
                 lon = location["lon"]
                 acc = location["acc"]
                 address = location["address"]
-            
+
                 st.write("### 🏠 Address")
-                st.write(address)
-            
+                st.info(address)
+
                 st.write("### 🌐 Coordinates")
                 st.write("*Latitude:*", lat)
                 st.write("*Longitude:*", lon)
                 st.write("*Accuracy:*", acc, "meters")
-            
-                # --- 3. Insert Leaflet map with CARTO Voyager ---
+
+                # --- 3. Leaflet Map ---
                 leaflet_map = f"""
                 <div id="map" style="height: 450px; width: 100%; border-radius: 10px;"></div>
-            
+
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
                 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-            
+
                 <script>
                     var map = L.map('map').setView([{lat}, {lon}], 16);
-            
-                    // ⭐ CARTO Voyager tiles
+
                     L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
                         maxZoom: 19,
                         attribution: '&copy; OpenStreetMap & CartoDB'
                     }}).addTo(map);
-            
-                    // Marker at GPS location
+
                     L.marker([{lat}, {lon}]).addTo(map)
                         .bindPopup("📍 You are here<br>Accuracy: ±{acc} m")
                         .openPopup();
                 </script>
                 """
-            
+
                 st.components.v1.html(leaflet_map, height=470)
-            
+
             else:
                 st.info("Click *Allow* when your browser asks for GPS location.")
-
 
             # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -265,7 +260,7 @@ if menu == "Employee":
                 return r.status_code in [200, 201]
 
             # ---------------- WHATSAPP ALERT ----------------
-            def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
+            def send_whatsapp_alert(emp_name, dept, status, supplies, address, notes):
                 try:
                     account_sid = st.secrets["TWILIO_SID"]
                     auth_token = st.secrets["TWILIO_AUTH"]
@@ -278,7 +273,7 @@ if menu == "Employee":
                         f"🚨 *New Emergency Request Submitted!*\n\n"
                         f"👤 Name: {emp_name}\n"
                         f"🏢 Department: {dept}\n"
-                        f"📍 Location: {location}\n"
+                        f"📍 Location: {address}\n"
                         f"📊 Status: {status}\n"
                         f"📦 Supplies: {supplies}\n"
                         f"📝 Notes: {notes}\n"
@@ -302,7 +297,7 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
-                    if location  == "":
+                    if not location:
                         st.error("❌ Please detect your location first.")
                         st.stop()
 
@@ -314,6 +309,7 @@ if menu == "Employee":
                             'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
                         ])
 
+                    # FINAL FIX: SAVE ONLY THE ADDRESS
                     new_row = pd.DataFrame({
                         'Timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
                         'Employee ID': [emp_id],
@@ -321,7 +317,7 @@ if menu == "Employee":
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [location],   # only address saved
+                        'Location': [address],  # ✅ Save only clean address
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
@@ -333,7 +329,7 @@ if menu == "Employee":
                     if push_to_github(updated):
                         st.success("✅ Request submitted successfully!")
                         st.balloons()
-                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), location, notes)
+                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
                     else:
                         st.error("❌ Failed to update GitHub.")
 
