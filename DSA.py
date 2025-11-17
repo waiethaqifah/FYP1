@@ -13,6 +13,7 @@ import folium
 from streamlit_folium import st_folium
 from github import Github
 from twilio.rest import Client
+from streamlit_js_eval import streamlit_js_eval
 
 # -------------------- LOAD DATA FUNCTIONS --------------------
 @st.cache_data
@@ -153,102 +154,37 @@ if menu == "Employee":
             # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
             
-            location_html = """
-            <div style="max-width:700px; margin:auto;">
-                <button onclick="getLocation()" style="width:100%; padding:12px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:5px;">
-                    📍 Detect My Location
-                </button>
-                <p id="loc_status" style="text-align:center; margin-top:8px;">Waiting for location...</p>
+            # Run JS to get GPS
+            location = streamlit_js_eval(
+                js_expressions="""
+                    new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({
+                                lat: pos.coords.latitude,
+                                lon: pos.coords.longitude,
+                                acc: pos.coords.accuracy
+                            }),
+                            err => resolve(null),
+                            { enableHighAccuracy: true }
+                        );
+                    });
+                """,
+                key="get_gps",
+            )
             
-                <div id="map" style="height:420px; width:100%; border:1px solid #ccc; border-radius:8px; margin-top:10px;"></div>
-            </div>
+            if location:
+                st.success("GPS Received!")
+                lat = location["lat"]
+                lon = location["lon"]
+                acc = location["acc"]
+                
+                st.write("Latitude:", lat)
+                st.write("Longitude:", lon)
+                st.write("Accuracy:", acc, "m")
             
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-            
-            <script>
-            var map = L.map('map', {tap:false}).setView([20, 0], 2);
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-            
-            var marker;
-            
-            // --- FIXED: correct method to send data to Streamlit ---
-            function sendToStreamlit(text) {
-                window.parent.postMessage({type: "streamlit:setComponentValue", value: text}, "*");
-            }
-            
-            function setMarker(lat, lon) {
-                if (marker) { map.removeLayer(marker); }
-                marker = L.marker([lat, lon], {draggable:true}).addTo(map);
-            
-                marker.on('dragend', function(e) {
-                    let pos = marker.getLatLng();
-                    sendToStreamlit(pos.lat.toFixed(6) + "," + pos.lng.toFixed(6));
-                });
-            
-                marker.bindPopup("📍 Your Location").openPopup();
-                sendToStreamlit(lat + "," + lon);
-            }
-            
-            function getLocation() {
-                const stat = document.getElementById('loc_status');
-            
-                if (!navigator.geolocation) {
-                    stat.innerHTML = "Geolocation not supported.";
-                    return;
-                }
-            
-                stat.innerHTML = "Detecting location...";
-            
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        const lat = pos.coords.latitude.toFixed(6);
-                        const lon = pos.coords.longitude.toFixed(6);
-                        const acc = pos.coords.accuracy.toFixed(1);
-            
-                        stat.innerHTML = `Latitude: ${lat} | Longitude: ${lon} | Accuracy: ±${acc}m`;
-            
-                        map.setView([lat, lon], 17);
-                        setMarker(lat, lon);
-                    },
-                    (err) => {
-                        stat.innerHTML = "Error: " + err.message;
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            }
-            </script>
-            """
-            
-            coords = st.components.v1.html(location_html, height=520)
-            
-            # Correct Streamlit receiver
-            coords_value = st.text_input("GPS Coordinates (auto)", key="gps_auto")
-            
-            final_address = ""
-            
-            if coords_value:
-                try:
-                    lat, lon = map(float, coords_value.split(","))
-            
-                    geolocator = Nominatim(user_agent="tetron_dms")
-                    loc = geolocator.reverse((lat, lon), language="en")
-            
-                    if loc:
-                        final_address = loc.address
-                        st.success(f"📍 Detected Location: {final_address}")
-                    else:
-                        final_address = f"{lat:.4f}, {lon:.4f}"
-                        st.warning("⚠️ Unable to retrieve full address — using coordinates only")
-            
-                except:
-                    st.warning("⚠️ GPS data format invalid.")
-            
+                st.map({"lat": [lat], "lon": [lon]})
             else:
-                st.info("📌 Click 'Detect My Location' to start.")
+                st.info("Click 'Allow' when your browser asks for location.")
 
 
             # ---------------- GITHUB CONNECTION ----------------
