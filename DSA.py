@@ -148,63 +148,69 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- LOCATION SELECTION ----------------
-            st.subheader("📍 Select and Confirm Your Location")
+            # ---------------- LOCATION AUTO-DETECTION ----------------
+            st.subheader("📍 Confirm Your Location (Auto-Detected)")
 
-            country = st.selectbox("Select Your Country", ["Malaysia", "Singapore", "Thailand", "Indonesia"])
+            # Hidden input that receives detected location from JS
+            location_input = st.empty()
+            location_json = location_input.text_input(
+                "location_json", value="", label_visibility="collapsed"
+            )
 
-            district_options = {
-                "Malaysia": [
-                    "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Penang",
-                    "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu",
-                    "Kuala Lumpur", "Putrajaya", "Labuan"
-                ],
-                "Singapore": ["Central Region", "East Region", "North Region", "North-East Region", "West Region"],
-                "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Khon Kaen", "Songkhla"],
-                "Indonesia": ["Jakarta", "Bandung", "Bali", "Surabaya", "Medan", "Makassar"]
-            }
+            # HTML + JavaScript location detection
+            st.components.v1.html(
+                """
+                <button onclick="getLocation()" 
+                    style="padding: 10px; font-size: 16px; margin-bottom: 10px;">
+                    Detect Location
+                </button>
 
-            district = st.selectbox("Select Your State / District", district_options[country])
-            specific_area = st.text_input("Add Specific Area or Landmark (optional)", placeholder="e.g., near Hospital Sungai Buloh")
+                <p id="status"></p>
 
-            st.markdown("#### 🗺️ Adjust Your Exact Location on the Map")
+                <script>
+                function getLocation() {
+                    document.getElementById("status").innerHTML = "Detecting your location...";
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(success, error);
+                    } else {
+                        document.getElementById("status").innerHTML = "Geolocation is not supported.";
+                    }
+                }
 
-            # Approximate coordinates for selected region (for map center)
-            region_coords = {
-                "Malaysia": [4.2105, 101.9758],
-                "Singapore": [1.3521, 103.8198],
-                "Thailand": [13.7563, 100.5018],
-                "Indonesia": [-0.7893, 113.9213]
-            }
+                function success(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
 
-            lat, lon, address = None, None, None
-            start_coords = region_coords.get(country, [3.139, 101.6869])
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const place = data.display_name;
 
-            # Folium map
-            m = folium.Map(location=start_coords, zoom_start=6)
-            folium.LatLngPopup().add_to(m)
-            output = st_folium(m, width=700, height=400)
+                            const streamlitInput = window.parent.document.querySelector(
+                                'input[aria-label="location_json"]'
+                            );
+                            streamlitInput.value = place;
+                            streamlitInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-            if output and output.get("last_clicked"):
-                lat = output["last_clicked"]["lat"]
-                lon = output["last_clicked"]["lng"]
-                st.info(f"📍 Selected coordinates: {lat:.4f}, {lon:.4f}")
+                            document.getElementById("status").innerHTML = 
+                                "📍 Location detected: " + place;
+                        })
+                        .catch(err => {
+                            document.getElementById("status").innerHTML = "Reverse geocoding failed.";
+                        });
+                }
 
-                try:
-                    geolocator = Nominatim(user_agent="tetron_disaster_app")
-                    location = geolocator.reverse((lat, lon), language="en")
-                    if location:
-                        address = location.address
-                        st.success(f"✅ Confirmed detailed location: {address}")
-                except Exception:
-                    st.warning("⚠️ Could not retrieve address from coordinates.")
-                    address = f"{lat:.4f}, {lon:.4f}"
+                function error() {
+                    document.getElementById("status").innerHTML = "Unable to retrieve location.";
+                }
+                </script>
+                """,
+                height=200,
+            )
 
-            if not address:
-                # fallback address if no map click
-                address = f"{specific_area}, {district}, {country}" if specific_area.strip() else f"{district}, {country}"
-
-            st.success(f"📍 Final Location: {address}")
+            # Show final detected location
+            if location_json:
+                st.success(f"📍 Final Location: {location_json}")
 
             # ---------------- GITHUB CONNECTION ----------------
             GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -261,6 +267,8 @@ if menu == "Employee":
                 submit = st.form_submit_button("Submit Request")
 
                 if submit:
+                    address = location_json if location_json.strip() else "Unknown Location"
+
                     try:
                         data = get_github_file()
                     except Exception:
@@ -291,8 +299,9 @@ if menu == "Employee":
                         send_whatsapp_alert(name, dept, status, ", ".join(supplies), address, notes)
                     else:
                         st.error("❌ Failed to update GitHub file. Please check your token permissions.")
+
         else:
-            st.warning("❌ Employee ID not found. Please check again.")     
+            st.warning("❌ Employee ID not found. Please check again.")
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
