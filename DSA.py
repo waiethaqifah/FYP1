@@ -286,7 +286,7 @@ if menu == "Employee":
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [final_address],   # only address saved
+                        'Location': [location],   # only address saved
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
@@ -298,7 +298,7 @@ if menu == "Employee":
                     if push_to_github(updated):
                         st.success("✅ Request submitted successfully!")
                         st.balloons()
-                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), final_address, notes)
+                        send_whatsapp_alert(name, dept, status, ", ".join(supplies), location, notes)
                     else:
                         st.error("❌ Failed to update GitHub.")
 
