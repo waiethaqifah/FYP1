@@ -12,3 +12,4 @@ Timestamp,Employee ID,Name,Department,Phone Number,Email,Location,Status,Supplie
 2025-11-14 06:33:01,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,Location not detected yet,Safe,"Hygiene Kit, Water",help me clean my house please,Pending
 2025-11-14 06:50:48,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,Location not detected yet,Safe,"Baby Supplies, Hygiene Kit",,Pending
 2025-11-17 01:44:06,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,Unknown Location,Safe,,,Pending
+2025-11-17 02:54:45,EMP007,Waie,HR,1140545164,waiethaqifah23@gmail.com,"{'lat': 4.3883426, 'lon': 100.9694079, 'acc': 6979.32000532793}",Safe,Blanket,,Pending
