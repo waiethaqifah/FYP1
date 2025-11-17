@@ -149,7 +149,7 @@ if menu == "Employee":
             st.write("### 👤 Employee Information")
             st.dataframe(emp_info)
 
-            # ---------------- LOCATION AUTO-DETECTION + MAP ----------------
+            # ---------------- LOCATION AUTO-DETECTION + LEAFLET MAP ----------------
             st.subheader("📍 Auto Detect Location")
 
             location_html = """
@@ -176,6 +176,7 @@ if menu == "Employee":
 
             function updateStreamlit(lat, lon) {
                 const hidden_input = window.parent.document.querySelector('textarea[data-testid="stTextArea-input"]');
+                if (!hidden_input) return;
                 const event = new Event('input', { bubbles: true });
                 hidden_input.value = lat + "," + lon;
                 hidden_input.dispatchEvent(event);
@@ -242,7 +243,7 @@ if menu == "Employee":
                         st.success(f"📍 Detected Location: {final_address}")
                     else:
                         final_address = f"{lat:.4f}, {lon:.4f}"
-                        st.warning("⚠️ Could not retrieve full address.")
+                        st.warning("⚠️ Could not retrieve full address, saving coordinates only.")
 
                 except:
                     st.warning("⚠️ Error processing GPS data.")
@@ -269,8 +270,8 @@ if menu == "Employee":
                 content = b64encode(updated_df.to_csv(index=False).encode()).decode()
                 data = {"message": "Update requests.csv", "content": content, "sha": sha}
 
-                result = requests.put(api_url, json=data, headers=headers)
-                return result.status_code in [200, 201]
+                r = requests.put(api_url, json=data, headers=headers)
+                return r.status_code in [200, 201]
 
             # ---------------- WHATSAPP ALERT ----------------
             def send_whatsapp_alert(emp_name, dept, status, supplies, location, notes):
@@ -278,11 +279,11 @@ if menu == "Employee":
                     account_sid = st.secrets["TWILIO_SID"]
                     auth_token = st.secrets["TWILIO_AUTH"]
                     from_whatsapp = st.secrets["TWILIO_WHATSAPP_FROM"]
-                    admin_group_numbers = [num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")]
+                    admins = [num.strip() for num in st.secrets["ADMIN_GROUP_NUMBERS"].split(",")]
 
                     client = Client(account_sid, auth_token)
 
-                    msg = (
+                    body = (
                         f"🚨 *New Emergency Request Submitted!*\n\n"
                         f"👤 Name: {emp_name}\n"
                         f"🏢 Department: {dept}\n"
@@ -292,8 +293,8 @@ if menu == "Employee":
                         f"📝 Notes: {notes}\n"
                     )
 
-                    for admin in admin_group_numbers:
-                        client.messages.create(from_=from_whatsapp, to=admin, body=msg)
+                    for admin in admins:
+                        client.messages.create(from_=from_whatsapp, to=admin, body=body)
 
                 except Exception as e:
                     st.warning(f"⚠️ WhatsApp error: {e}")
@@ -301,8 +302,10 @@ if menu == "Employee":
             # ---------------- FORM SUBMISSION ----------------
             with st.form("emergency_form"):
                 status = st.selectbox("Your Situation", ["Safe", "Evacuated", "In Need of Help"])
-                supplies = st.multiselect("Supplies Needed",
-                                          ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"])
+                supplies = st.multiselect(
+                    "Supplies Needed",
+                    ["Food", "Water", "Baby Supplies", "Hygiene Kit", "Medical Kit", "Blanket"]
+                )
                 notes = st.text_area("Additional Notes")
 
                 submit = st.form_submit_button("Submit Request")
@@ -313,9 +316,9 @@ if menu == "Employee":
                         st.stop()
 
                     try:
-                        data = get_github_file()
+                        df = get_github_file()
                     except:
-                        data = pd.DataFrame(columns=[
+                        df = pd.DataFrame(columns=[
                             'Timestamp', 'Employee ID', 'Name', 'Department', 'Phone Number', 'Email',
                             'Location', 'Status', 'Supplies Needed', 'Additional Notes', 'Request Status'
                         ])
@@ -327,14 +330,14 @@ if menu == "Employee":
                         'Department': [dept],
                         'Phone Number': [phone],
                         'Email': [email],
-                        'Location': [final_address],   # SAVE ONLY PLACE NAME
+                        'Location': [final_address],   # only address saved
                         'Status': [status],
                         'Supplies Needed': [", ".join(supplies)],
                         'Additional Notes': [notes],
                         'Request Status': ["Pending"]
                     })
 
-                    updated = pd.concat([data, new_row], ignore_index=True)
+                    updated = pd.concat([df, new_row], ignore_index=True)
 
                     if push_to_github(updated):
                         st.success("✅ Request submitted successfully!")
@@ -345,6 +348,7 @@ if menu == "Employee":
 
         else:
             st.warning("❌ Employee ID not found.")
+
 
 # -------------------- ADMIN INTERFACE --------------------
 if menu == "Admin":
