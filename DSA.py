@@ -427,4 +427,79 @@ if menu == "Admin":
     else:
         st.info("No valid timestamp entries available for request trend analysis.")
 
+# ===================== KPI SYSTEM EVALUATION SECTION =====================
+    st.markdown("---")
+    st.header("📊 System Performance Evaluation (KPI-Based)")
+
+    try:
+        df = get_github_file()
+    except:
+        df = load_data()
+
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')
+
+    # KPI counts
+    total = len(df)
+    pending = (df['Request Status'] == "Pending").sum()
+    delivered = (df['Request Status'] == "Delivered").sum()
+    rejected = (df['Request Status'] == "Rejected").sum()
+
+    completion_rate = (delivered / total * 100) if total > 0 else 0
+    backlog_rate = (pending / total * 100) if total > 0 else 0
+    rejection_rate = (rejected / total * 100) if total > 0 else 0
+
+    # Avg response time
+    try:
+        delivered_df = df[df['Request Status'] == "Delivered"].copy()
+        delivered_df['response_hours'] = (
+            pd.Timestamp.now() - delivered_df['Timestamp']
+        ).dt.total_seconds() / 3600
+        avg_response = delivered_df['response_hours'].mean()
+    except:
+        avg_response = None
+
+    # Location accuracy
+    auto_detected = df["Location"].str.contains("latitude|long", case=False, na=False).sum()
+    manual_detected = total - auto_detected
+    location_accuracy = (auto_detected / total * 100) if total > 0 else 0
+
+    # Budget
+    unit_cost = {
+        "Food": 10, "Water": 5, "Baby Supplies": 15,
+        "Hygiene Kit": 12, "Medical Kit": 20, "Blanket": 8
+    }
+    supply_counts = df["Supplies Needed"].fillna("").str.get_dummies(sep=", ").sum()
+    estimated_budget = sum([qty * unit_cost.get(item, 0) for item, qty in supply_counts.items()])
+
+    # KPI Cards
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    kpi1.metric("Completion Rate", f"{completion_rate:.1f}%")
+    kpi2.metric("Pending Backlog", f"{backlog_rate:.1f}%")
+    kpi3.metric("Rejection Rate", f"{rejection_rate:.1f}%")
+    kpi4.metric("Avg Response (hrs)", f"{avg_response:.1f}" if avg_response else "N/A")
+
+    st.markdown("---")
+
+    st.subheader("📍 Location Accuracy")
+    st.progress(location_accuracy / 100)
+    st.write(f"Automatically detected: **{auto_detected}**")
+    st.write(f"Manual entries: **{manual_detected}**")
+
+    st.subheader("💰 Estimated Total Budget Used")
+    st.metric("Total Budget (RM)", f"{estimated_budget:.2f}")
+
+    st.markdown("---")
+
+    st.subheader("📊 Requests by Status")
+    st.bar_chart(df["Request Status"].value_counts())
+
+    st.subheader("📦 Top Supplies Needed")
+    st.bar_chart(supply_counts)
+
+    st.subheader("📈 Requests Over Time")
+    daily = df.groupby(df['Timestamp'].dt.date).size()
+    st.line_chart(daily)
+
+    st.success("KPI evaluation generated successfully.")
+
    
